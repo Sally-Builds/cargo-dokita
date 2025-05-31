@@ -1,11 +1,11 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::fs;
 
 use crate::diagnostics::{Finding, Severity};
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize,Serialize, Debug, Clone)]
 pub struct Package {
     pub name: String,
     pub version: String,
@@ -17,21 +17,21 @@ pub struct Package {
 }
 
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum Dependency {
     Version(String),
     Detailed(DetailedDependency),
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DetailedDependency {
     pub version: Option<String>,
     pub path: Option<String>,
     pub features: Option<Vec<String>>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CargoManifest {
     pub package: Option<Package>, // Package section is optional (e.g. in a workspace virtual manifest)
     pub dependencies: Option<HashMap<String, Dependency>>,
@@ -43,7 +43,7 @@ pub struct CargoManifest {
 }
 
 impl CargoManifest {
-    pub fn v(path_to_cargo_toml: &Path) -> Result<Self, String> {
+    pub fn parse(path_to_cargo_toml: &Path) -> Result<Self, String> {
         let content = fs::read_to_string(path_to_cargo_toml)
             .map_err(|e| format!("Failed to read Cargo.toml at {:?}: {}", path_to_cargo_toml, e))?;
 
@@ -165,4 +165,181 @@ pub fn check_rust_edition(manifest: &CargoManifest) -> Vec<Finding> {
         }
     }
     findings
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    #[test]
+    fn parse_valid_cargo_manifest_from_file() {
+        // create temp dir and toml file
+        let temp_dir = std::env::temp_dir();
+        let  temp_file = temp_dir.join("Cargo-test.toml");
+
+        let toml_content = r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            edition = "2024"
+        "#;
+
+        //write to toml file
+        fs::write(&temp_file, toml_content).unwrap();
+
+        let _cleanup = scopeguard::guard(&temp_file, |path| {
+            let _ = fs::remove_file(path);
+        });
+        
+        let result = CargoManifest::parse(temp_file.as_path());
+        assert!(result.is_ok());
+
+        let cargo_manifest = result.unwrap();
+        let package = cargo_manifest.package.as_ref().unwrap();
+
+        assert_eq!(package.name, "cargo-dokita");
+        assert_eq!(package.version, "0.1.0");
+        assert_eq!(package.edition, Some("2024".to_string()));
+    }
+
+    #[test]
+    fn parse_invalid_cargo_manifest_from_file() {
+        let temp_dir = std::env::temp_dir();
+        let  temp_file = temp_dir.join("Cargo-test.toml");
+
+        let toml_content = r#"
+            package
+            name: "cargo-dokita"
+            version = "0.1.0"
+            edition = "2024"
+        "#;
+
+        //write to toml file
+        fs::write(&temp_file, toml_content).unwrap();
+
+        let _cleanup = scopeguard::guard(&temp_file, |path| {
+            let _ = fs::remove_file(path);
+        });
+
+        let result = CargoManifest::parse(temp_file.as_path());
+        let err_msg = result.unwrap_err();
+        assert!(err_msg.contains("Failed to parse Cargo.toml at"));
+    }
+
+    #[test]
+    fn parse_cargo_manifest_from_invalid_path() {
+        let temp_dir = std::env::temp_dir();
+        let  temp_file = temp_dir.join("");
+
+        let _cleanup = scopeguard::guard(&temp_file, |path| {
+            let _ = fs::remove_file(path);
+        });
+
+        let result = CargoManifest::parse(temp_file.as_path());
+        let err_msg = result.unwrap_err();
+        assert!(err_msg.contains("Failed to read Cargo.toml at"));
+    }
+
+    #[test]
+    fn complete_metadata_returns_no_findings() {
+        let manifest  = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            edition = "2024"
+            description =  "A project that checks your code structure"
+            license = "MIT"
+            repository = "https://github.com/Sally-Builds/Rustify"
+            readme = "README.md"
+        "#).expect("Failed to pass TOML");
+
+
+        let findings = check_missing_metadata(&manifest);
+
+        assert!(findings.is_empty(), "Expected no findings for complete metadata, but got: {:#?}", findings);
+    }
+
+    #[test]
+    fn missing_metadata_description_returns_md001_finding() {
+        let manifest  = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            edition = "2024"
+            license = "MIT"
+            repository = "https://github.com/Sally-Builds/Rustify"
+            readme = "README.md"
+        "#).expect("Failed to pass TOML");
+
+        let findings = check_missing_metadata(&manifest);
+
+        assert!(findings.len() == 1);
+        assert!(findings[0].message.contains("Missing 'description' in [package]"));
+        assert_eq!(findings[0].code, "MD001");
+        assert_eq!(findings[0].severity, Severity::Warning);
+    }
+
+    #[test]
+    fn missing_metadata_license_returns_md0003_findings() {
+        let manifest  = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            description =  "A projects that checks your code structure"
+            repository = "http://github.com/Sally-Builds/Rustify"
+            edition = "2024"
+            readme = "README.md"
+        "#).expect("Failed to pass TOML");
+
+        let findings = check_missing_metadata(&manifest);
+
+        assert!(findings.len() == 1);
+        assert!(findings[0].message.contains("Missing 'license' (or 'license-file') in [package]"));
+        assert_eq!(findings[0].code, "MD002");
+        assert_eq!(findings[0].severity, Severity::Warning);
+    }
+
+    #[test]
+    fn missing_metadata_repository_returns_md0003_findings() {
+        let manifest  = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            description =  "A projects that checks your code structure"
+            edition = "2024"
+            license = "MIT"
+            readme = "README.md"
+        "#).expect("Failed to pass TOML");
+
+        let findings = check_missing_metadata(&manifest);
+
+        assert!(findings.len() == 1);
+        assert!(findings[0].message.contains("Missing 'repository' in [package]"));
+        assert_eq!(findings[0].code, "MD003");
+        assert_eq!(findings[0].severity, Severity::Note);
+    }
+
+    #[test]
+    fn missing_metadata_readme_returns_md0003_findings() {
+        let manifest  = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            description =  "A projects that checks your code structure"
+            repository = "http://github.com/Sally-Builds/Rustify"
+            edition = "2024"
+            license = "MIT"
+
+        "#).expect("Failed to pass TOML");
+
+        let findings = check_missing_metadata(&manifest);
+
+        assert!(findings.len() == 1);
+        assert!(findings[0].message.contains("Missing 'readme' field in [package] section of Cargo.toml"));
+        assert_eq!(findings[0].code, "MD004");
+        assert_eq!(findings[0].severity, Severity::Note);
+    }
+
 }

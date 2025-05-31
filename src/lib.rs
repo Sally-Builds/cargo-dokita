@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf, process};
+use std::{fs, path::PathBuf};
 
 use diagnostics::{Finding,Severity};
 pub mod manifest;
@@ -28,7 +28,7 @@ pub fn analyze_project (project_path: &str) -> Result<(), MyError> {
 
     let project_path = project_path.join("Cargo.toml");
 
-    let cargo_manifest = manifest::CargoManifest::v(&project_path.as_path());
+    let cargo_manifest = manifest::CargoManifest::parse(&project_path.as_path());
 
     match &cargo_manifest {
         Ok(data) => {
