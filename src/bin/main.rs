@@ -19,6 +19,5 @@ fn main() -> Result<(), MyError> {
 
     
     cargo_dokita::analyze_project(project_path)?;
-
     Ok(())
 }

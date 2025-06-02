@@ -282,7 +282,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_metadata_license_returns_md0003_findings() {
+    fn missing_metadata_license_returns_md002_findings() {
         let manifest  = toml::from_str(r#"
             [package]
             name = "cargo-dokita"
@@ -322,7 +322,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_metadata_readme_returns_md0003_findings() {
+    fn missing_metadata_readme_returns_md0004_findings() {
         let manifest  = toml::from_str(r#"
             [package]
             name = "cargo-dokita"
@@ -342,4 +342,282 @@ mod tests {
         assert_eq!(findings[0].severity, Severity::Note);
     }
 
+    #[test]
+    fn specific_version_returns_no_findings() {
+        let manifest = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            edition = "2021"
+            
+            [dependencies]
+            serde = { version = "1.0.219", features = ["derive"] }
+            toml = "0.8.22"
+        "#).expect("Failed to parse TOML");
+
+        let findings = check_dependency_versions(&manifest);
+
+        assert!(findings.is_empty(), "Expected no findings, but got: {:?}", findings);
+    }
+
+    #[test]
+    fn wildcard_version_returns_dp001_finding() {
+        let manifest = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            edition = "2021"
+            
+            [dependencies]
+            serde = { version = "*", features = ["derive"] }
+            toml = "0.8.22"
+        "#).expect("Failed to parse TOML");
+
+        let findings = check_dependency_versions(&manifest);
+
+        assert_eq!(findings.len(), 1, "Expected exactly 1 finding, got {}", findings.len());
+        
+        let finding = &findings[0];
+        assert_eq!(finding.code, "DP001");
+        assert_eq!(finding.severity, Severity::Warning);
+        assert!(finding.message.contains("Wildcard version \"*\" used for runtime dependency 'serde'"));
+        assert_eq!(finding.file_path, Some("Cargo.toml".to_string()));
+    }
+
+    #[test]
+    fn multiple_wildcard_dependencies_returns_multiple_findings() {
+        let manifest = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            edition = "2021"
+            
+            [dependencies]
+            serde = "*"
+            tokio = "*"
+            reqwest = "0.11.0"
+        "#).expect("Failed to parse TOML");
+
+        let findings = check_dependency_versions(&manifest);
+
+        assert_eq!(findings.len(), 2);
+        assert!(findings.iter().all(|f| f.code == "DP001"));
+        assert!(findings.iter().any(|f| f.message.contains("'serde'")));
+        assert!(findings.iter().any(|f| f.message.contains("'tokio'")));
+    }
+
+    #[test]
+    fn wildcard_in_dev_dependencies_returns_dp001_finding() {
+        let manifest = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            edition = "2021"
+            
+            [dependencies]
+            serde = "1.0.0"
+            
+            [dev-dependencies]
+            criterion = "*"
+        "#).expect("Failed to parse TOML");
+
+        let findings = check_dependency_versions(&manifest);
+
+        assert_eq!(findings.len(), 1);
+        let finding = &findings[0];
+        assert_eq!(finding.code, "DP001");
+        assert!(finding.message.contains("dev dependency 'criterion'"));
+    }
+
+    #[test]
+    fn wildcard_in_build_dependencies_returns_dp001_finding() {
+        let manifest = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            edition = "2021"
+            
+            [build-dependencies]
+            cc = "*"
+        "#).expect("Failed to parse TOML");
+
+        let findings = check_dependency_versions(&manifest);
+
+        assert_eq!(findings.len(), 1);
+        let finding = &findings[0];
+        assert_eq!(finding.code, "DP001");
+        assert!(finding.message.contains("build dependency 'cc'"));
+    }
+
+    #[test]
+    fn mixed_dependency_types_with_wildcards() {
+        let manifest = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            edition = "2021"
+            
+            [dependencies]
+            serde = "*"
+            
+            [dev-dependencies]
+            criterion = "*"
+            
+            [build-dependencies]
+            cc = "1.0.0"
+        "#).expect("Failed to parse TOML");
+
+        let findings = check_dependency_versions(&manifest);
+
+        assert_eq!(findings.len(), 2);
+        assert!(findings.iter().any(|f| f.message.contains("runtime dependency 'serde'")));
+        assert!(findings.iter().any(|f| f.message.contains("dev dependency 'criterion'")));
+    }
+
+    #[test]
+    fn empty_dependencies_returns_no_findings() {
+        let manifest = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            edition = "2021"
+        "#).expect("Failed to parse TOML");
+
+        let findings = check_dependency_versions(&manifest);
+
+        assert!(findings.is_empty());
+    }
+
+
+    #[test]
+    fn latest_stable_edition_returns_no_findings() {
+        let manifest = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            edition = "2024"
+        "#).expect("Failed to parse TOML");
+
+        let findings = check_rust_edition(&manifest);
+
+        assert!(findings.is_empty(), "Expected no findings but got {:?}", findings);
+    }
+
+    #[test]
+    fn rust_2021_edition_returns_ed001_finding() {
+        let manifest = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            edition = "2021"
+        "#).expect("Failed to parse TOML");
+
+        let findings = check_rust_edition(&manifest);
+
+        assert_eq!(findings.len(), 1, "Expected exactly 1 finding");
+        
+        let finding = &findings[0];
+        assert_eq!(finding.code, "ED001");
+        assert_eq!(finding.severity, Severity::Note);
+        assert!(finding.message.contains("Project uses Rust edition '2021', consider updating to '2024'"));
+        assert_eq!(finding.file_path, Some("Cargo.toml".to_string()));
+    }
+
+    #[test]
+    fn rust_2018_edition_returns_ed001_finding() {
+        let manifest = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            edition = "2018"
+        "#).expect("Failed to parse TOML");
+
+        let findings = check_rust_edition(&manifest);
+
+        assert_eq!(findings.len(), 1);
+        
+        let finding = &findings[0];
+        assert_eq!(finding.code, "ED001");
+        assert_eq!(finding.severity, Severity::Note);
+        assert!(finding.message.contains("Project uses Rust edition '2018', consider updating to '2024'"));
+    }
+
+    #[test]
+    fn rust_2015_edition_returns_ed001_finding() {
+        let manifest = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            edition = "2015"
+        "#).expect("Failed to parse TOML");
+
+        let findings = check_rust_edition(&manifest);
+
+        assert_eq!(findings.len(), 1);
+        
+        let finding = &findings[0];
+        assert_eq!(finding.code, "ED001");
+        assert_eq!(finding.severity, Severity::Note);
+        assert!(finding.message.contains("Project uses Rust edition '2015', consider updating to '2024'"));
+    }
+
+    #[test]
+    fn no_edition_specified_returns_ed002_finding() {
+        let manifest = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+        "#).expect("Failed to parse TOML");
+
+        let findings = check_rust_edition(&manifest);
+
+        assert_eq!(findings.len(), 1, "Expected exactly 1 finding");
+        
+        let finding = &findings[0];
+        assert_eq!(finding.code, "ED002");
+        assert_eq!(finding.severity, Severity::Note);
+        assert!(finding.message.contains("Project does not specify a Rust edition (implicitly 2015)"));
+        assert!(finding.message.contains("consider specifying and updating to '2024'"));
+        assert_eq!(finding.file_path, Some("Cargo.toml".to_string()));
+    }
+
+    #[test]
+    fn no_package_section_returns_no_findings() {
+        let manifest = toml::from_str(r#"
+            [workspace]
+            members = ["crate1", "crate2"]
+        "#).expect("Failed to parse TOML");
+
+        let findings = check_rust_edition(&manifest);
+
+        assert!(findings.is_empty(), "Expected no findings for workspace-only manifest");
+    }
+
+    #[test]
+    fn empty_manifest_returns_no_findings() {
+        let manifest = toml::from_str("").expect("Failed to parse empty TOML");
+
+        let findings = check_rust_edition(&manifest);
+
+        assert!(findings.is_empty(), "Expected no findings for empty manifest");
+    }
+
+    // Edge case: what happens with invalid edition values?
+    #[test]
+    fn invalid_edition_returns_ed001_finding() {
+        let manifest = toml::from_str(r#"
+            [package]
+            name = "cargo-dokita"
+            version = "0.1.0"
+            edition = "invalid"
+        "#).expect("Failed to parse TOML");
+
+        let findings = check_rust_edition(&manifest);
+
+        assert_eq!(findings.len(), 1);
+        
+        let finding = &findings[0];
+        assert_eq!(finding.code, "ED001");
+        assert!(finding.message.contains("Project uses Rust edition 'invalid'"));
+    }
 }
