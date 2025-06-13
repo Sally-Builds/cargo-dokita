@@ -12,7 +12,8 @@ pub struct Package {
     pub edition: Option<String>,
     pub description: Option<String>,
     pub license: Option<String>,
-    pub readme: Option<String>,
+    // pub readme: Option<String>,
+    pub readme: Option<toml::Value>,
     pub repository: Option<String>,
 }
 

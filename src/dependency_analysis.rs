@@ -214,3 +214,66 @@ pub fn check_vulnerability(project_path: &Path) -> Vec<Finding> {
 
     findings
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{env, fs, time::{SystemTime, UNIX_EPOCH}};
+
+    // Helper function to create a unique temporary directory
+    fn create_temp_project_dir() -> std::path::PathBuf {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let project_name = format!("test_project_{}_{}", std::process::id(), timestamp);
+        
+        let temp_dir = env::temp_dir().join(project_name);
+        // Clean up if it exists
+        let _ = fs::remove_dir_all(&temp_dir);
+        fs::create_dir_all(&temp_dir).expect("Failed to create temp directory");
+        temp_dir
+    }
+
+    // Helper function to create a valid Rust project structure
+    fn setup_rust_project(project_dir: &std::path::Path, manifest_name: &str) -> std::path::PathBuf {
+        let src_dir = project_dir.join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("lib.rs"), "// empty lib").unwrap();
+
+        let manifest_path = project_dir.join(manifest_name);
+        let toml_content = r#"
+            [package]
+            name = "test-project"
+            version = "0.1.0"
+            edition = "2021"
+
+            [dependencies]
+            serde = "1.0"
+            "#;
+        fs::write(&manifest_path, toml_content).unwrap();
+        manifest_path
+    }
+
+    #[test]
+    fn valid_manifest_path_returns_metadata() {
+        let temp_dir = create_temp_project_dir();
+        let manifest_path = setup_rust_project(&temp_dir, "Cargo.toml");
+
+        let result = get_project_metadata(&manifest_path);
+        
+        // Cleanup
+        let _ = fs::remove_dir_all(&temp_dir);
+        
+        assert!(result.is_ok(), "Failed to parse metadata: {:?}", result.err());
+        
+        let metadata = result.unwrap();
+        println!("{:?}", metadata.workspace_members);
+        // assert_eq!(metadata.packages.len(), 1);
+        // assert_eq!(metadata.packages[0].name.to_string(), "test-project");
+        // assert_eq!(metadata.packages[0].version.to_string(), "0.1.0");
+    }
+
+
+}

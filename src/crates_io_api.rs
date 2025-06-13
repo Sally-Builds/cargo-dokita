@@ -15,10 +15,7 @@ pub struct CratesIoCrate {
 
 #[derive(Deserialize, Debug)]
 struct CrateData {
-    // id: String, // The crate name
     max_version: String, // The newest version string (stable)
-    // newest_version: String, // Could be a pre-release
-    // Add more fields if needed, like description, documentation, repository
 }
 
 // Not strictly needed if we only use max_version, but good for completeness
@@ -26,9 +23,6 @@ struct CrateData {
 struct CrateVersion {
     num: String, // Version number string
     yanked: bool,
-    // license: String,
-    // created_at: String,
-    // downloads: u64,
 }
 
 
@@ -42,9 +36,6 @@ pub fn get_latest_versions_from_crates_io(crate_name: &str, client: &Client) -> 
         .send()
         .map_err(|e| format!("Failed to send request to crate.io for {}: {}", crate_name, e));
 
-    // if res.unwrap().status().is_success() {
-
-    // }
     let api_response: CratesIoCrate = match res {
         Ok(res) => {
             if !res.status().is_success() {

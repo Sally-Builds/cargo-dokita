@@ -6,6 +6,7 @@ pub mod manifest;
 pub mod diagnostics;
 pub mod dependency_analysis;
 pub mod crates_io_api;
+pub mod code_checks;
 
 #[derive(Debug)]
 pub enum MyError {
@@ -23,6 +24,9 @@ pub fn analyze_project (project_path: &str) -> Result<(), MyError> {
             return Err(MyError::UnresolvableProjectPath)
         },
     };
+    let rust_files = code_checks::collect_rust_files(&project_path.as_path());
+    findings.extend(code_checks::check_code_patterns(&rust_files, &project_path));
+    println!("{:?}", rust_files);
 
     if !is_rust_project(&project_path) {
         eprintln!("This is not a rust project");
@@ -38,8 +42,11 @@ pub fn analyze_project (project_path: &str) -> Result<(), MyError> {
             findings.extend(manifest::check_missing_metadata(&data));
             findings.extend(manifest::check_dependency_versions(&data));
             findings.extend(manifest::check_rust_edition(&data));
+
+            
+            findings.extend(code_checks::check_project_structure(&project_path, Some(data)));
         },
-        Err(e) => {
+        Err(_) => {
 
         }
     }
@@ -72,9 +79,12 @@ pub fn analyze_project (project_path: &str) -> Result<(), MyError> {
                 Severity::Note => "NOTE",
             };
             let file_info = finding.file_path.as_deref().unwrap_or("N/A");
+            let line_info = finding.line_number.map_or("".to_string(), |l| {
+                format!("{}", l)
+            });
             println!(
-                "[{}] ({}): {} [{}]",
-                severity_str, finding.code, finding.message, file_info
+                "[{}] ({}): {} [{} {}]",
+                severity_str, finding.code, finding.message, file_info, line_info
             );
         }
         // Exit with an error code if there are errors or warnings

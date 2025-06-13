@@ -26,6 +26,10 @@ impl Finding {
             line_number: None, // Keep it simple for now
         }
     }
+    pub fn with_line(mut self, line: usize) -> Self {
+        self.line_number = Some(line);
+        self
+    }
 }
 
 
