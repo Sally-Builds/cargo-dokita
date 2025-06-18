@@ -5,7 +5,7 @@ use crate::diagnostics::{Finding, Severity};
 use regex::Regex;
 use once_cell::sync::Lazy;
 use crate::manifest::CargoManifest; 
-use cargo_metadata::Metadata;
+use rayon::prelude::*;
 
 static UNWRAP_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\.unwrap\(\)").unwrap());
 static EXPECT_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r#"\.expect\s*\("#).unwrap());
@@ -36,7 +36,12 @@ pub fn collect_rust_files(project_root: &Path) -> Vec<PathBuf> {
     rust_files
 }
 
-
+// fn determine_lib_context(file_path: &Path, project_root: &Path) -> bool {
+//     file_path.starts_with(project_root.join("src"))
+//         && !file_path.ends_with("main.rs")
+//         && !file_path.starts_with(project_root.join("src").join("bin"))
+//         && file_path != project_root.join("build.rs")
+// }
 
 fn is_library_file(file_path: &Path, project_root: &Path) -> bool {
     let src_lib_path = project_root.join("src").join("lib.rs");
@@ -55,19 +60,13 @@ pub fn check_code_patterns(
     rust_files: &[PathBuf],
     project_root: &Path
 ) -> Vec<Finding> {
-    let mut findings = Vec::new();
+    let findings_from_all_files: Vec<Finding> = rust_files
+        .par_iter()
+        .flat_map(|file_path_ref| {
+            let file_path = &**file_path_ref;
+            let mut per_file_findings: Vec<Finding> = Vec::new();
 
-    for file_path in rust_files {
-        // Determine if the file is part of application code (main, examples, tests) vs library code
-        // Heuristic: if it's in src/ but not main.rs and not in src/bin/, it's "library-like"
-        // A more robust check would use cargo_metadata to see if there's a lib target.
-
-        // For now, let's use a simplified `is_library_file` heuristic:
-        // let is_lib_context = file_path.starts_with(project_root.join("src"))
-        //     && !file_path.ends_with("main.rs") // Direct main.rs
-        //     && !file_path.starts_with(project_root.join("src").join("bin")) // Files under src/bin/
-        //     && file_path != &project_root.join("build.rs");
-        let is_lib_context = is_library_file(file_path, project_root);
+            let is_lib_context = is_library_file(file_path, project_root);
 
 
         // Skip build.rs for some checks like unwrap/expect, as they are common there
@@ -80,13 +79,13 @@ pub fn check_code_patterns(
         let content = match fs::read_to_string(file_path) {
             Ok(c) => c,
             Err(e) => {
-                findings.push(Finding::new(
+                per_file_findings.push(Finding::new(
                     "IO001", // File Read Error
                     format!("Failed to read file {:?}: {}", file_path, e),
                     Severity::Warning,
                     Some(file_path.to_string_lossy().into_owned()),
                 ));
-                continue;
+                return per_file_findings;
             }
         };
 
@@ -96,7 +95,7 @@ pub fn check_code_patterns(
 
             // Check for .unwrap() in library context
             if is_lib_context && UNWRAP_REGEX.is_match(line_content) && !file_path.ends_with("build.rs") {
-                findings.push(Finding::new(
+                per_file_findings.push(Finding::new(
                     "CODE001",
                     format!("'.unwrap()' used in library context. Consider using '?' or pattern matching."),
                     Severity::Warning,
@@ -106,7 +105,7 @@ pub fn check_code_patterns(
 
             // Check for .expect() in library context
             if is_lib_context && EXPECT_REGEX.is_match(line_content) && !file_path.ends_with("build.rs") {
-                findings.push(Finding::new(
+                per_file_findings.push(Finding::new(
                     "CODE002",
                     format!("'.expect()' used in library context. While better than unwrap, prefer '?' or specific error handling."),
                     Severity::Note, // expect is slightly better than unwrap
@@ -119,7 +118,7 @@ pub fn check_code_patterns(
                  // Further refine: allow in main fn of examples, benches.
                  // This check is tricky without knowing the exact role of the file.
                  // For now, broad check on `is_lib_context`.
-                findings.push(Finding::new(
+                per_file_findings.push(Finding::new(
                     "CODE003",
                     format!("Diagnostic macro (println! or dbg!) found in library context. Remove before release."),
                     Severity::Note,
@@ -130,7 +129,7 @@ pub fn check_code_patterns(
             // Check for TODO/FIXME comments (applies to all files)
             if TODO_COMMENT_REGEX.is_match(line_content) {
                 let comment_type = TODO_COMMENT_REGEX.captures(line_content).unwrap().get(1).unwrap().as_str();
-                findings.push(Finding::new(
+                per_file_findings.push(Finding::new(
                     "CODE004",
                     format!("Found '{}' comment. Address or create an issue for it.", comment_type),
                     Severity::Note,
@@ -138,8 +137,11 @@ pub fn check_code_patterns(
                 ).with_line(line_number_for_finding));
             }
         }
-    }
-    findings
+
+            per_file_findings
+        }).collect();
+    
+    findings_from_all_files
 }
 
 
