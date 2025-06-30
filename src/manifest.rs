@@ -165,7 +165,7 @@ pub fn check_dependency_versions(manifest: &CargoManifest, config: &Config) -> V
     findings
 }
 
-pub fn check_rust_edition(manifest: &CargoManifest, config: &Config) -> Vec<Finding> {
+pub fn check_rust_edition(manifest: &CargoManifest) -> Vec<Finding> {
     let mut findings = Vec::new();
     const LATEST_STABLE_EDITION: &str = "2024"; // Update this as new editions are released
 
@@ -200,458 +200,517 @@ pub fn check_rust_edition(manifest: &CargoManifest, config: &Config) -> Vec<Find
 }
 
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
 
 
-//     #[test]
-//     fn parse_valid_cargo_manifest_from_file() {
-//         // create temp dir and toml file
-//         let temp_dir = std::env::temp_dir();
-//         let  temp_file = temp_dir.join("Cargo-test.toml");
 
-//         let toml_content = r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "2024"
-//         "#;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::collections::HashMap;
+    use tempfile::TempDir;
+    use crate::config::{Config, GeneralConfig, ChecksConfig};
+    use crate::diagnostics::{Finding, Severity};
 
-//         //write to toml file
-//         fs::write(&temp_file, toml_content).unwrap();
+    // Helper function to create a temporary Cargo.toml file
+    fn create_temp_cargo_toml(content: &str) -> (TempDir, PathBuf) {
+        let temp_dir = TempDir::new().unwrap();
+        let cargo_toml_path = temp_dir.path().join("Cargo.toml");
+        fs::write(&cargo_toml_path, content).unwrap();
+        (temp_dir, cargo_toml_path)
+    }
 
-//         let _cleanup = scopeguard::guard(&temp_file, |path| {
-//             let _ = fs::remove_file(path);
-//         });
+    // Helper function to create a mock config with all checks enabled
+    fn mock_config_all_enabled() -> Config {
+        let mut enabled = HashMap::new();
+        enabled.insert("MD001".to_string(), true);
+        enabled.insert("MD002".to_string(), true);
+        enabled.insert("MD003".to_string(), true);
+        enabled.insert("MD004".to_string(), true);
         
-//         let result = CargoManifest::parse(temp_file.as_path());
-//         assert!(result.is_ok());
+        Config {
+            general: GeneralConfig::default(),
+            checks: ChecksConfig { enabled },
+        }
+    }
 
-//         let cargo_manifest = result.unwrap();
-//         let package = cargo_manifest.package.as_ref().unwrap();
-
-//         assert_eq!(package.name, "cargo-dokita");
-//         assert_eq!(package.version, "0.1.0");
-//         assert_eq!(package.edition, Some("2024".to_string()));
-//     }
-
-//     #[test]
-//     fn parse_invalid_cargo_manifest_from_file() {
-//         let temp_dir = std::env::temp_dir();
-//         let  temp_file = temp_dir.join("Cargo-test.toml");
-
-//         let toml_content = r#"
-//             package
-//             name: "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "2024"
-//         "#;
-
-//         //write to toml file
-//         fs::write(&temp_file, toml_content).unwrap();
-
-//         let _cleanup = scopeguard::guard(&temp_file, |path| {
-//             let _ = fs::remove_file(path);
-//         });
-
-//         let result = CargoManifest::parse(temp_file.as_path());
-//         let err_msg = result.unwrap_err();
-//         assert!(err_msg.contains("Failed to parse Cargo.toml at"));
-//     }
-
-//     #[test]
-//     fn parse_cargo_manifest_from_invalid_path() {
-//         let temp_dir = std::env::temp_dir();
-//         let  temp_file = temp_dir.join("");
-
-//         let _cleanup = scopeguard::guard(&temp_file, |path| {
-//             let _ = fs::remove_file(path);
-//         });
-
-//         let result = CargoManifest::parse(temp_file.as_path());
-//         let err_msg = result.unwrap_err();
-//         assert!(err_msg.contains("Failed to read Cargo.toml at"));
-//     }
-
-//     #[test]
-//     fn complete_metadata_returns_no_findings() {
-//         let manifest  = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "2024"
-//             description =  "A project that checks your code structure"
-//             license = "MIT"
-//             repository = "https://github.com/Sally-Builds/Rustify"
-//             readme = "README.md"
-//         "#).expect("Failed to pass TOML");
-
-
-//         let findings = check_missing_metadata(&manifest);
-
-//         assert!(findings.is_empty(), "Expected no findings for complete metadata, but got: {:#?}", findings);
-//     }
-
-//     #[test]
-//     fn missing_metadata_description_returns_md001_finding() {
-//         let manifest  = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "2024"
-//             license = "MIT"
-//             repository = "https://github.com/Sally-Builds/Rustify"
-//             readme = "README.md"
-//         "#).expect("Failed to pass TOML");
-
-//         let findings = check_missing_metadata(&manifest);
-
-//         assert!(findings.len() == 1);
-//         assert!(findings[0].message.contains("Missing 'description' in [package]"));
-//         assert_eq!(findings[0].code, "MD001");
-//         assert_eq!(findings[0].severity, Severity::Warning);
-//     }
-
-//     #[test]
-//     fn missing_metadata_license_returns_md002_findings() {
-//         let manifest  = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             description =  "A projects that checks your code structure"
-//             repository = "http://github.com/Sally-Builds/Rustify"
-//             edition = "2024"
-//             readme = "README.md"
-//         "#).expect("Failed to pass TOML");
-
-//         let findings = check_missing_metadata(&manifest);
-
-//         assert!(findings.len() == 1);
-//         assert!(findings[0].message.contains("Missing 'license' (or 'license-file') in [package]"));
-//         assert_eq!(findings[0].code, "MD002");
-//         assert_eq!(findings[0].severity, Severity::Warning);
-//     }
-
-//     #[test]
-//     fn missing_metadata_repository_returns_md0003_findings() {
-//         let manifest  = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             description =  "A projects that checks your code structure"
-//             edition = "2024"
-//             license = "MIT"
-//             readme = "README.md"
-//         "#).expect("Failed to pass TOML");
-
-//         let findings = check_missing_metadata(&manifest);
-
-//         assert!(findings.len() == 1);
-//         assert!(findings[0].message.contains("Missing 'repository' in [package]"));
-//         assert_eq!(findings[0].code, "MD003");
-//         assert_eq!(findings[0].severity, Severity::Note);
-//     }
-
-//     #[test]
-//     fn missing_metadata_readme_returns_md0004_findings() {
-//         let manifest  = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             description =  "A projects that checks your code structure"
-//             repository = "http://github.com/Sally-Builds/Rustify"
-//             edition = "2024"
-//             license = "MIT"
-
-//         "#).expect("Failed to pass TOML");
-
-//         let findings = check_missing_metadata(&manifest);
-
-//         assert!(findings.len() == 1);
-//         assert!(findings[0].message.contains("Missing 'readme' field in [package] section of Cargo.toml"));
-//         assert_eq!(findings[0].code, "MD004");
-//         assert_eq!(findings[0].severity, Severity::Note);
-//     }
-
-//     #[test]
-//     fn specific_version_returns_no_findings() {
-//         let manifest = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "2021"
-            
-//             [dependencies]
-//             serde = { version = "1.0.219", features = ["derive"] }
-//             toml = "0.8.22"
-//         "#).expect("Failed to parse TOML");
-
-//         let findings = check_dependency_versions(&manifest);
-
-//         assert!(findings.is_empty(), "Expected no findings, but got: {:?}", findings);
-//     }
-
-//     #[test]
-//     fn wildcard_version_returns_dp001_finding() {
-//         let manifest = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "2021"
-            
-//             [dependencies]
-//             serde = { version = "*", features = ["derive"] }
-//             toml = "0.8.22"
-//         "#).expect("Failed to parse TOML");
-
-//         let findings = check_dependency_versions(&manifest);
-
-//         assert_eq!(findings.len(), 1, "Expected exactly 1 finding, got {}", findings.len());
+    // Helper function to create a mock config with specific checks enabled
+    fn mock_config_with_checks(checks: &[&str]) -> Config {
+        let mut enabled = HashMap::new();
+        for check in checks {
+            enabled.insert(check.to_string(), true);
+        }
         
-//         let finding = &findings[0];
-//         assert_eq!(finding.code, "DP001");
-//         assert_eq!(finding.severity, Severity::Warning);
-//         assert!(finding.message.contains("Wildcard version \"*\" used for runtime dependency 'serde'"));
-//         assert_eq!(finding.file_path, Some("Cargo.toml".to_string()));
-//     }
+        Config {
+            general: GeneralConfig::default(),
+            checks: ChecksConfig { enabled },
+        }
+    }
 
-//     #[test]
-//     fn multiple_wildcard_dependencies_returns_multiple_findings() {
-//         let manifest = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "2021"
-            
-//             [dependencies]
-//             serde = "*"
-//             tokio = "*"
-//             reqwest = "0.11.0"
-//         "#).expect("Failed to parse TOML");
-
-//         let findings = check_dependency_versions(&manifest);
-
-//         assert_eq!(findings.len(), 2);
-//         assert!(findings.iter().all(|f| f.code == "DP001"));
-//         assert!(findings.iter().any(|f| f.message.contains("'serde'")));
-//         assert!(findings.iter().any(|f| f.message.contains("'tokio'")));
-//     }
-
-//     #[test]
-//     fn wildcard_in_dev_dependencies_returns_dp001_finding() {
-//         let manifest = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "2021"
-            
-//             [dependencies]
-//             serde = "1.0.0"
-            
-//             [dev-dependencies]
-//             criterion = "*"
-//         "#).expect("Failed to parse TOML");
-
-//         let findings = check_dependency_versions(&manifest);
-
-//         assert_eq!(findings.len(), 1);
-//         let finding = &findings[0];
-//         assert_eq!(finding.code, "DP001");
-//         assert!(finding.message.contains("dev dependency 'criterion'"));
-//     }
-
-//     #[test]
-//     fn wildcard_in_build_dependencies_returns_dp001_finding() {
-//         let manifest = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "2021"
-            
-//             [build-dependencies]
-//             cc = "*"
-//         "#).expect("Failed to parse TOML");
-
-//         let findings = check_dependency_versions(&manifest);
-
-//         assert_eq!(findings.len(), 1);
-//         let finding = &findings[0];
-//         assert_eq!(finding.code, "DP001");
-//         assert!(finding.message.contains("build dependency 'cc'"));
-//     }
-
-//     #[test]
-//     fn mixed_dependency_types_with_wildcards() {
-//         let manifest = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "2021"
-            
-//             [dependencies]
-//             serde = "*"
-            
-//             [dev-dependencies]
-//             criterion = "*"
-            
-//             [build-dependencies]
-//             cc = "1.0.0"
-//         "#).expect("Failed to parse TOML");
-
-//         let findings = check_dependency_versions(&manifest);
-
-//         assert_eq!(findings.len(), 2);
-//         assert!(findings.iter().any(|f| f.message.contains("runtime dependency 'serde'")));
-//         assert!(findings.iter().any(|f| f.message.contains("dev dependency 'criterion'")));
-//     }
-
-//     #[test]
-//     fn empty_dependencies_returns_no_findings() {
-//         let manifest = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "2021"
-//         "#).expect("Failed to parse TOML");
-
-//         let findings = check_dependency_versions(&manifest);
-
-//         assert!(findings.is_empty());
-//     }
-
-
-//     #[test]
-//     fn latest_stable_edition_returns_no_findings() {
-//         let manifest = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "2024"
-//         "#).expect("Failed to parse TOML");
-
-//         let findings = check_rust_edition(&manifest);
-
-//         assert!(findings.is_empty(), "Expected no findings but got {:?}", findings);
-//     }
-
-//     #[test]
-//     fn rust_2021_edition_returns_ed001_finding() {
-//         let manifest = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "2021"
-//         "#).expect("Failed to parse TOML");
-
-//         let findings = check_rust_edition(&manifest);
-
-//         assert_eq!(findings.len(), 1, "Expected exactly 1 finding");
+    // Helper function to create a mock config with specific checks disabled
+    fn _mock_config_with_disabled_checks(disabled_checks: &[&str]) -> Config {
+        let mut enabled = HashMap::new();
+        // Enable all checks by default
+        enabled.insert("MD001".to_string(), true);
+        enabled.insert("MD002".to_string(), true);
+        enabled.insert("MD003".to_string(), true);
+        enabled.insert("MD004".to_string(), true);
         
-//         let finding = &findings[0];
-//         assert_eq!(finding.code, "ED001");
-//         assert_eq!(finding.severity, Severity::Note);
-//         assert!(finding.message.contains("Project uses Rust edition '2021', consider updating to '2024'"));
-//         assert_eq!(finding.file_path, Some("Cargo.toml".to_string()));
-//     }
-
-//     #[test]
-//     fn rust_2018_edition_returns_ed001_finding() {
-//         let manifest = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "2018"
-//         "#).expect("Failed to parse TOML");
-
-//         let findings = check_rust_edition(&manifest);
-
-//         assert_eq!(findings.len(), 1);
+        // Disable specific checks
+        for check in disabled_checks {
+            enabled.insert(check.to_string(), false);
+        }
         
-//         let finding = &findings[0];
-//         assert_eq!(finding.code, "ED001");
-//         assert_eq!(finding.severity, Severity::Note);
-//         assert!(finding.message.contains("Project uses Rust edition '2018', consider updating to '2024'"));
-//     }
+        Config {
+            general: GeneralConfig::default(),
+            checks: ChecksConfig { enabled },
+        }
+    }
 
-//     #[test]
-//     fn rust_2015_edition_returns_ed001_finding() {
-//         let manifest = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "2015"
-//         "#).expect("Failed to parse TOML");
+    #[test]
+    fn test_parse_complete_cargo_toml() {
+        let content = r#"
+[package]
+name = "test-package"
+version = "0.1.0"
+edition = "2021"
+description = "A test package"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/user/repo"
 
-//         let findings = check_rust_edition(&manifest);
+[dependencies]
+serde = "1.0"
+tokio = { version = "1.0", features = ["full"] }
 
-//         assert_eq!(findings.len(), 1);
+[dev-dependencies]
+tempfile = "3.0"
+
+[build-dependencies]
+cc = "1.0"
+"#;
+
+        let (_temp_dir, path) = create_temp_cargo_toml(content);
+        let manifest = CargoManifest::parse(&path).unwrap();
+
+        assert!(manifest.package.is_some());
+        let package = manifest.package.unwrap();
+        assert_eq!(package.name, "test-package");
+        assert_eq!(package.version, "0.1.0");
+        assert_eq!(package.edition, Some("2021".to_string()));
+        assert_eq!(package.description, Some("A test package".to_string()));
+        assert_eq!(package.license, Some("MIT".to_string()));
+        assert_eq!(package.repository, Some("https://github.com/user/repo".to_string()));
+
+        assert!(manifest.dependencies.is_some());
+        assert!(manifest.dev_dependencies.is_some());
+        assert!(manifest.build_dependencies.is_some());
+    }
+
+    #[test]
+    fn test_parse_minimal_cargo_toml() {
+        let content = r#"
+[package]
+name = "minimal-package"
+version = "0.1.0"
+"#;
+
+        let (_temp_dir, path) = create_temp_cargo_toml(content);
+        let manifest = CargoManifest::parse(&path).unwrap();
+
+        assert!(manifest.package.is_some());
+        let package = manifest.package.unwrap();
+        assert_eq!(package.name, "minimal-package");
+        assert_eq!(package.version, "0.1.0");
+        assert_eq!(package.edition, None);
+        assert_eq!(package.description, None);
+        assert_eq!(package.license, None);
+        assert_eq!(package.repository, None);
+    }
+
+    #[test]
+    fn test_parse_workspace_cargo_toml() {
+        let content = r#"
+[workspace]
+members = ["crate1", "crate2"]
+
+[dependencies]
+shared-dep = "1.0"
+"#;
+
+        let (_temp_dir, path) = create_temp_cargo_toml(content);
+        let manifest = CargoManifest::parse(&path).unwrap();
+
+        assert!(manifest.package.is_none());
+        assert!(manifest.dependencies.is_some());
+    }
+
+    #[test]
+    fn test_parse_nonexistent_file() {
+        let result = CargoManifest::parse(Path::new("nonexistent/Cargo.toml"));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Failed to read Cargo.toml"));
+    }
+
+    #[test]
+    fn test_parse_invalid_toml() {
+        let content = "invalid toml content [[[";
+        let (_temp_dir, path) = create_temp_cargo_toml(content);
+        let result = CargoManifest::parse(&path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Failed to parse Cargo.toml"));
+    }
+
+    #[test]
+    fn test_dependency_parsing() {
+        let content = r#"
+[package]
+name = "test"
+version = "0.1.0"
+
+[dependencies]
+simple = "1.0"
+detailed = { version = "2.0", features = ["feature1"] }
+path_dep = { path = "../local" }
+"#;
+
+        let (_temp_dir, path) = create_temp_cargo_toml(content);
+        let manifest = CargoManifest::parse(&path).unwrap();
+
+        let deps = manifest.dependencies.unwrap();
         
-//         let finding = &findings[0];
-//         assert_eq!(finding.code, "ED001");
-//         assert_eq!(finding.severity, Severity::Note);
-//         assert!(finding.message.contains("Project uses Rust edition '2015', consider updating to '2024'"));
-//     }
+        match deps.get("simple").unwrap() {
+            Dependency::Version(v) => assert_eq!(v, "1.0"),
+            _ => panic!("Expected version dependency"),
+        }
 
-//     #[test]
-//     fn no_edition_specified_returns_ed002_finding() {
-//         let manifest = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//         "#).expect("Failed to parse TOML");
+        match deps.get("detailed").unwrap() {
+            Dependency::Detailed(d) => {
+                assert_eq!(d.version, Some("2.0".to_string()));
+                assert_eq!(d.features, Some(vec!["feature1".to_string()]));
+            },
+            _ => panic!("Expected detailed dependency"),
+        }
 
-//         let findings = check_rust_edition(&manifest);
+        match deps.get("path_dep").unwrap() {
+            Dependency::Detailed(d) => {
+                assert_eq!(d.path, Some("../local".to_string()));
+                assert_eq!(d.version, None);
+            },
+            _ => panic!("Expected detailed dependency"),
+        }
+    }
 
-//         assert_eq!(findings.len(), 1, "Expected exactly 1 finding");
+    #[test]
+    fn test_check_missing_metadata_all_present() {
+        let manifest = CargoManifest {
+            package: Some(Package {
+                name: "test".to_string(),
+                version: "0.1.0".to_string(),
+                edition: Some("2021".to_string()),
+                description: Some("Test description".to_string()),
+                license: Some("MIT".to_string()),
+                readme: Some(toml::Value::String("README.md".to_string())),
+                repository: Some("https://github.com/user/repo".to_string()),
+            }),
+            dependencies: None,
+            dev_dependencies: None,
+            build_dependencies: None,
+        };
+
+        let config = mock_config_all_enabled();
+        let findings = check_missing_metadata(&manifest, &config);
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn test_check_missing_description() {
+        let manifest = CargoManifest {
+            package: Some(Package {
+                name: "test".to_string(),
+                version: "0.1.0".to_string(),
+                edition: None,
+                description: None,
+                license: Some("MIT".to_string()),
+                readme: Some(toml::Value::String("README.md".to_string())),
+                repository: Some("https://github.com/user/repo".to_string()),
+            }),
+            dependencies: None,
+            dev_dependencies: None,
+            build_dependencies: None,
+        };
+
+        let config = mock_config_with_checks(&["MD001"]);
+        let findings = check_missing_metadata(&manifest, &config);
         
-//         let finding = &findings[0];
-//         assert_eq!(finding.code, "ED002");
-//         assert_eq!(finding.severity, Severity::Note);
-//         assert!(finding.message.contains("Project does not specify a Rust edition (implicitly 2015)"));
-//         assert!(finding.message.contains("consider specifying and updating to '2024'"));
-//         assert_eq!(finding.file_path, Some("Cargo.toml".to_string()));
-//     }
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].code, "MD001");
+        assert_eq!(findings[0].severity, Severity::Warning);
+        assert!(findings[0].message.contains("Missing 'description'"));
+    }
 
-//     #[test]
-//     fn no_package_section_returns_no_findings() {
-//         let manifest = toml::from_str(r#"
-//             [workspace]
-//             members = ["crate1", "crate2"]
-//         "#).expect("Failed to parse TOML");
+    #[test]
+    fn test_check_empty_description() {
+        let manifest = CargoManifest {
+            package: Some(Package {
+                name: "test".to_string(),
+                version: "0.1.0".to_string(),
+                edition: None,
+                description: Some("".to_string()),
+                license: Some("MIT".to_string()),
+                readme: Some(toml::Value::String("README.md".to_string())),
+                repository: Some("https://github.com/user/repo".to_string()),
+            }),
+            dependencies: None,
+            dev_dependencies: None,
+            build_dependencies: None,
+        };
 
-//         let findings = check_rust_edition(&manifest);
-
-//         assert!(findings.is_empty(), "Expected no findings for workspace-only manifest");
-//     }
-
-//     #[test]
-//     fn empty_manifest_returns_no_findings() {
-//         let manifest = toml::from_str("").expect("Failed to parse empty TOML");
-
-//         let findings = check_rust_edition(&manifest);
-
-//         assert!(findings.is_empty(), "Expected no findings for empty manifest");
-//     }
-
-//     // Edge case: what happens with invalid edition values?
-//     #[test]
-//     fn invalid_edition_returns_ed001_finding() {
-//         let manifest = toml::from_str(r#"
-//             [package]
-//             name = "cargo-dokita"
-//             version = "0.1.0"
-//             edition = "invalid"
-//         "#).expect("Failed to parse TOML");
-
-//         let findings = check_rust_edition(&manifest);
-
-//         assert_eq!(findings.len(), 1);
+        let config = mock_config_with_checks(&["MD001"]);
+        let findings = check_missing_metadata(&manifest, &config);
         
-//         let finding = &findings[0];
-//         assert_eq!(finding.code, "ED001");
-//         assert!(finding.message.contains("Project uses Rust edition 'invalid'"));
-//     }
-// }
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].code, "MD001");
+    }
+
+    #[test]
+    fn test_check_missing_license() {
+        let manifest = CargoManifest {
+            package: Some(Package {
+                name: "test".to_string(),
+                version: "0.1.0".to_string(),
+                edition: None,
+                description: Some("Test description".to_string()),
+                license: None,
+                readme: Some(toml::Value::String("README.md".to_string())),
+                repository: Some("https://github.com/user/repo".to_string()),
+            }),
+            dependencies: None,
+            dev_dependencies: None,
+            build_dependencies: None,
+        };
+
+        let config = mock_config_with_checks(&["MD002"]);
+        let findings = check_missing_metadata(&manifest, &config);
+        
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].code, "MD002");
+        assert_eq!(findings[0].severity, Severity::Warning);
+        assert!(findings[0].message.contains("Missing 'license'"));
+    }
+
+    #[test]
+    fn test_check_missing_repository() {
+        let manifest = CargoManifest {
+            package: Some(Package {
+                name: "test".to_string(),
+                version: "0.1.0".to_string(),
+                edition: None,
+                description: Some("Test description".to_string()),
+                license: Some("MIT".to_string()),
+                readme: Some(toml::Value::String("README.md".to_string())),
+                repository: None,
+            }),
+            dependencies: None,
+            dev_dependencies: None,
+            build_dependencies: None,
+        };
+
+        let config = mock_config_with_checks(&["MD003"]);
+        let findings = check_missing_metadata(&manifest, &config);
+        
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].code, "MD003");
+        assert_eq!(findings[0].severity, Severity::Note);
+        assert!(findings[0].message.contains("Missing 'repository'"));
+    }
+
+    #[test]
+    fn test_check_missing_readme() {
+        let manifest = CargoManifest {
+            package: Some(Package {
+                name: "test".to_string(),
+                version: "0.1.0".to_string(),
+                edition: None,
+                description: Some("Test description".to_string()),
+                license: Some("MIT".to_string()),
+                readme: None,
+                repository: Some("https://github.com/user/repo".to_string()),
+            }),
+            dependencies: None,
+            dev_dependencies: None,
+            build_dependencies: None,
+        };
+
+        let config = mock_config_with_checks(&["MD004"]);
+        let findings = check_missing_metadata(&manifest, &config);
+        
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].code, "MD004");
+        assert_eq!(findings[0].severity, Severity::Note);
+        assert!(findings[0].message.contains("Missing 'readme' field"));
+    }
+
+    #[test]
+    fn test_check_readme_false() {
+        let manifest = CargoManifest {
+            package: Some(Package {
+                name: "test".to_string(),
+                version: "0.1.0".to_string(),
+                edition: None,
+                description: Some("Test description".to_string()),
+                license: Some("MIT".to_string()),
+                readme: Some(toml::Value::Boolean(false)),
+                repository: Some("https://github.com/user/repo".to_string()),
+            }),
+            dependencies: None,
+            dev_dependencies: None,
+            build_dependencies: None,
+        };
+
+        let config = mock_config_with_checks(&["MD004"]);
+        let findings = check_missing_metadata(&manifest, &config);
+        
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn test_check_readme_invalid_value() {
+        let manifest = CargoManifest {
+            package: Some(Package {
+                name: "test".to_string(),
+                version: "0.1.0".to_string(),
+                edition: None,
+                description: Some("Test description".to_string()),
+                license: Some("MIT".to_string()),
+                readme: Some(toml::Value::Integer(123)),
+                repository: Some("https://github.com/user/repo".to_string()),
+            }),
+            dependencies: None,
+            dev_dependencies: None,
+            build_dependencies: None,
+        };
+
+        let config = mock_config_with_checks(&["MD004"]);
+        let findings = check_missing_metadata(&manifest, &config);
+        
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].code, "MD004");
+        assert_eq!(findings[0].severity, Severity::Warning);
+        assert!(findings[0].message.contains("unexpected value"));
+    }
+
+    #[test]
+    fn test_check_missing_package_section() {
+        let manifest = CargoManifest {
+            package: None,
+            dependencies: Some(HashMap::new()),
+            dev_dependencies: None,
+            build_dependencies: None,
+        };
+
+        let config = mock_config_all_enabled();
+        let findings = check_missing_metadata(&manifest, &config);
+        
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].code, "MD005");
+        assert_eq!(findings[0].severity, Severity::Error);
+        assert!(findings[0].message.contains("Missing section [package]"));
+    }
+
+    #[test]
+    fn test_check_multiple_missing_fields() {
+        let manifest = CargoManifest {
+            package: Some(Package {
+                name: "test".to_string(),
+                version: "0.1.0".to_string(),
+                edition: None,
+                description: None,
+                license: None,
+                readme: None,
+                repository: None,
+            }),
+            dependencies: None,
+            dev_dependencies: None,
+            build_dependencies: None,
+        };
+
+        let config = mock_config_all_enabled();
+        let findings = check_missing_metadata(&manifest, &config);
+        
+        assert_eq!(findings.len(), 4); // MD001, MD002, MD003, MD004
+        
+        let codes: Vec<&str> = findings.iter().map(|f| f.code.as_str()).collect();
+        assert!(codes.contains(&"MD001"));
+        assert!(codes.contains(&"MD002"));
+        assert!(codes.contains(&"MD003"));
+        assert!(codes.contains(&"MD004"));
+    }
+
+    #[test]
+    fn test_check_disabled_checks() {
+    let manifest = CargoManifest {
+        package: Some(Package {
+            name: "test".to_string(),
+            version: "0.1.0".to_string(),
+            edition: None,
+            description: None,
+            license: None,
+            readme: None,
+            repository: None,
+        }),
+        dependencies: None,
+        dev_dependencies: None,
+        build_dependencies: None,
+    };
+
+    // Create config with only MD001 enabled, others explicitly disabled
+    let mut enabled = HashMap::new();
+    enabled.insert("MD001".to_string(), true);
+    enabled.insert("MD002".to_string(), false);
+    enabled.insert("MD003".to_string(), false);
+    enabled.insert("MD004".to_string(), false);
+    
+    let config = Config {
+        general: GeneralConfig::default(),
+        checks: ChecksConfig { enabled },
+    };
+    
+    let findings = check_missing_metadata(&manifest, &config);
+    
+    assert_eq!(findings.len(), 1);
+    assert_eq!(findings[0].code, "MD001");
+}
 
 
+    #[test]
+    fn test_readme_field_variants() {
+        // Test string value
+        let mut manifest = CargoManifest {
+            package: Some(Package {
+                name: "test".to_string(),
+                version: "0.1.0".to_string(),
+                edition: None,
+                description: Some("Test".to_string()),
+                license: Some("MIT".to_string()),
+                readme: Some(toml::Value::String("README.md".to_string())),
+                repository: Some("https://github.com/user/repo".to_string()),
+            }),
+            dependencies: None,
+            dev_dependencies: None,
+            build_dependencies: None,
+        };
+
+        let config = mock_config_with_checks(&["MD004"]);
+        let findings = check_missing_metadata(&manifest, &config);
+        assert!(findings.is_empty());
+
+        // Test boolean true value (should be treated as invalid)
+        manifest.package.as_mut().unwrap().readme = Some(toml::Value::Boolean(true));
+        let findings = check_missing_metadata(&manifest, &config);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].code, "MD004");
+        assert_eq!(findings[0].severity, Severity::Warning);
+    }
+}

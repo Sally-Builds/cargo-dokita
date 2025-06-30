@@ -3,7 +3,7 @@ use dependency_analysis::check_vulnerability;
 use reqwest::blocking::Client as HttpClient;
 use std::io::Write; // For termcolor
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
-use rayon::join;
+// use rayon::join;
 use diagnostics::{Finding,Severity};
 pub mod manifest;
 pub mod diagnostics;
@@ -74,7 +74,7 @@ pub fn analyze_project (project_path: &str, output_format: &str) -> Result<(), M
                 Ok(md) => {
                         f.extend(manifest::check_missing_metadata(&md, &config));
                         f.extend(manifest::check_dependency_versions(&md, &config));
-                        f.extend(manifest::check_rust_edition(&md, &config));
+                        f.extend(manifest::check_rust_edition(&md));
                     },
                 Err(_) => {
 
@@ -100,6 +100,8 @@ pub fn analyze_project (project_path: &str, output_format: &str) -> Result<(), M
 
     findings.extend(manifest_findings);
     findings.extend(dep_findings);
+
+    findings.extend(code_checks::check_missing_denied_lints(&project_path.as_path(), &config));
 
     if findings.is_empty() {
         stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green))).unwrap_or_default();
