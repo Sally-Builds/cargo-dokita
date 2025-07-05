@@ -1,3 +1,20 @@
+//! Manifest parsing and metadata checks for Cargo.toml files.
+//!
+//! This module provides data structures and functions for parsing Cargo manifests (Cargo.toml),
+//! extracting package and dependency information, and performing various metadata checks.
+//!
+//! # Features
+//!
+//! - Defines `Package`, `Dependency`, and `CargoManifest` structs for deserializing Cargo.toml.
+//! - Supports both simple and detailed dependency specifications.
+//! - Provides `CargoManifest::parse` for loading and parsing a manifest from disk.
+//! - Implements checks for missing or incomplete package metadata (description, license, repository, readme, etc.).
+//! - Checks for wildcard dependency versions and outdated or missing Rust edition fields.
+//! - Includes comprehensive unit tests for manifest parsing and metadata validation.
+//!
+//! This module is intended for use in tools that lint, audit, or analyze Rust project manifests.
+//! 
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
@@ -57,37 +74,31 @@ impl CargoManifest {
 pub fn check_missing_metadata(manifest: &CargoManifest, config: &Config) -> Vec<Finding> {
     let mut findings = Vec::new();
     if let Some(package) = &manifest.package {
-        if config.is_check_enabled("MD001") {
-            if package.description.is_none() || package.description.as_deref() == Some("") {
+        if config.is_check_enabled("MD001") && (package.description.is_none() || package.description.as_deref() == Some("")) {
                 findings.push(Finding::new(
                     "MD001",
                     "Missing 'description' in [package] section of Cargo.toml.".to_string(),
                     Severity::Warning,
                     Some("Cargo.toml".to_string()),
                 ));
-            }
         }
         
-        if config.is_check_enabled("MD002") {
-             if package.license.is_none() || package.license.as_deref() == Some("") {
+        if config.is_check_enabled("MD002") && (package.license.is_none() || package.license.as_deref() == Some("")) {
                 findings.push(Finding::new(
                 "MD002",
                 "Missing 'license' (or 'license-file') in [package] section of Cargo.toml.".to_string(),
                 Severity::Warning,
                 Some("Cargo.toml".to_string()),
                 ));
-            }
         }
 
-        if config.is_check_enabled("MD003") {
-            if package.repository.is_none() || package.repository.as_deref() == Some("") {
+        if config.is_check_enabled("MD003") && (package.repository.is_none() || package.repository.as_deref() == Some("")) {
                 findings.push(Finding::new(
                     "MD003",
                     "Missing 'repository' in [package] section of Cargo.toml.".to_string(),
                     Severity::Note, // Less critical than license/description for local projects
                     Some("Cargo.toml".to_string()),
                 ));
-            }
         }
         
         if config.is_check_enabled("MD004") {
@@ -101,14 +112,12 @@ pub fn check_missing_metadata(manifest: &CargoManifest, config: &Config) -> Vec<
                     ));
                 },
                 Some(readme_value) => {
-                    if readme_value.as_str().is_some() {
-
-                    }else if readme_value.as_bool() == Some(false) {
+                    if readme_value.as_str().is_some()  || readme_value.as_bool() == Some(false){
 
                     }else {
                         findings.push(Finding::new(
                             "MD004",
-                            format!("The 'readme' field in Cargo.toml has an unexpected value ( '{}' ). Expected a file path string (e.g., \"README.md\") or `false`.", readme_value.to_string()),
+                            format!("The 'readme' field in Cargo.toml has an unexpected value ( '{}' ). Expected a file path string (e.g., \"README.md\") or `false`.", readme_value),
                             Severity::Warning, // This is more than a note, it's likely a misconfiguration.
                             Some("Cargo.toml".to_string()),
                         ));
@@ -211,7 +220,7 @@ mod tests {
     use std::collections::HashMap;
     use tempfile::TempDir;
     use crate::config::{Config, GeneralConfig, ChecksConfig};
-    use crate::diagnostics::{Finding, Severity};
+    use crate::diagnostics::{Severity};
 
     // Helper function to create a temporary Cargo.toml file
     fn create_temp_cargo_toml(content: &str) -> (TempDir, PathBuf) {

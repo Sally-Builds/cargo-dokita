@@ -1,3 +1,43 @@
+//! Code quality analysis and project structure checks for Rust projects.
+//!
+//! This module provides comprehensive static analysis capabilities for Rust codebases,
+//! focusing on code quality, best practices, and project structure validation.
+//!
+//! # Features
+//!
+//! ## Code Pattern Analysis
+//! - Detects potentially problematic patterns like `.unwrap()` and `.expect()` in library code
+//! - Identifies debug macros (`println!`, `dbg!`) that should be removed before release
+//! - Finds TODO/FIXME/XXX comments that need attention
+//! - Supports parallel processing for improved performance on large codebases
+//!
+//! ## Project Structure Validation
+//! - Validates presence of essential files (README.md, LICENSE)
+//! - Checks for proper source file organization (src/lib.rs, src/main.rs, src/bin/)
+//! - Integrates with Cargo manifest data for context-aware analysis
+//!
+//! ## Lint Configuration Checks
+//! - Verifies presence of recommended `#![deny(...)]` attributes
+//! - Configurable through the project's configuration system
+//!
+//! # Usage
+//!
+//! ```rust,no_run
+//! use std::path::Path;
+//! use code_checks::{collect_rust_files, check_code_patterns, check_project_structure};
+//!
+//! let project_root = Path::new("./my_project");
+//! let rust_files = collect_rust_files(project_root);
+//! let findings = check_code_patterns(&rust_files, project_root);
+//! 
+//! for finding in findings {
+//!     println!("{}: {}", finding.code, finding.message);
+//! }
+//! ```
+//!
+//! The module is designed to integrate seamlessly with cargo-dokita's diagnostic system
+//! and configuration management, providing actionable feedback for Rust developers.
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::{DirEntry, WalkDir};
@@ -16,7 +56,7 @@ static DENY_LINT_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"#!\[deny\(([^)]+
 
 fn is_rust_file(entry: &DirEntry) -> bool {
     entry.file_type().is_file()
-        && entry.path().extension().map_or(false, |ext| ext == "rs")
+        && entry.path().extension().is_some_and(|ext| ext == "rs")
 }
 
 pub fn collect_rust_files(project_root: &Path) -> Vec<PathBuf> {
@@ -89,7 +129,7 @@ pub fn check_code_patterns(
             if is_lib_context && UNWRAP_REGEX.is_match(line_content) && !file_path.ends_with("build.rs") {
                 per_file_findings.push(Finding::new(
                     "CODE001",
-                    format!("'.unwrap()' used in library context. Consider using '?' or pattern matching."),
+                    "'.unwrap()' used in library context. Consider using '?' or pattern matching.".to_string(),
                     Severity::Warning,
                     Some(file_path.to_string_lossy().into_owned()),
                 ).with_line(line_number_for_finding));
@@ -99,7 +139,7 @@ pub fn check_code_patterns(
             if is_lib_context && EXPECT_REGEX.is_match(line_content) && !file_path.ends_with("build.rs") {
                 per_file_findings.push(Finding::new(
                     "CODE002",
-                    format!("'.expect()' used in library context. While better than unwrap, prefer '?' or specific error handling."),
+                    "'.expect()' used in library context. While better than unwrap, prefer '?' or specific error handling.".to_string(),
                     Severity::Note, // expect is slightly better than unwrap
                     Some(file_path.to_string_lossy().into_owned()),
                 ).with_line(line_number_for_finding));
@@ -112,7 +152,7 @@ pub fn check_code_patterns(
                  // For now, broad check on `is_lib_context`.
                 per_file_findings.push(Finding::new(
                     "CODE003",
-                    format!("Diagnostic macro (println! or dbg!) found in library context. Remove before release."),
+                    "Diagnostic macro (println! or dbg!) found in library context. Remove before release.".to_string(),
                     Severity::Note,
                     Some(file_path.to_string_lossy().into_owned()),
                 ).with_line(line_number_for_finding));
@@ -150,10 +190,10 @@ pub fn check_project_structure(
 
     // Heuristic: If there's a [lib] section or no explicit [[bin]] targets and no main.rs,
     // it's likely intended to be a library.
-    let is_likely_library = manifest_data.map_or(false, |m| {
+    let is_likely_library = manifest_data.is_some_and(|m| {
         // Check if [lib] path is specified, or if name is specified (implies lib)
         // This part of `toml` parsing for manifest.lib might need to be added to `CargoManifest` struct
-        m.package.as_ref().map_or(false, |p| {
+        m.package.as_ref().is_some_and(|p| {
             // A common pattern is that the package name is used for the lib if not specified
             // This is still a heuristic. cargo_metadata is better.
             let default_lib_name = p.name.replace('-', "_");
@@ -186,10 +226,10 @@ pub fn check_project_structure(
             let readme_specified_and_false_or_exists = manifest_data
                 .and_then(|m| m.package.as_ref())
                 .and_then(|p| p.readme.as_ref())
-                .map_or(false, |r_val| {
+                .is_some_and(|r_val| {
                     // if r_val is a bool and false, then it's fine
                     if let Some(b) = r_val.as_bool() { // Assuming readme can be bool or string
-                        b == false
+                        !b
                     } else if let Some(s) = r_val.as_str() {
                         project_root.join(s).is_file()
                     } else {
@@ -216,14 +256,14 @@ pub fn check_project_structure(
             // Check if Cargo.toml specifies `license-file`
             let license_file_specified = manifest_data
                 .and_then(|m| m.package.as_ref())
-                .map_or(false, |p| {
+                .is_some_and(|p| {
                     // Assuming you add `license_file: Option<String>` to your Package struct
                     // p.license_file.as_ref().map_or(false, |lf| project_root.join(lf).is_file())
                     // For now, let's assume it's not specified if Package struct doesn't have it
                     p.license.is_some() && p.license.as_deref() != Some("") // If license is specified, a file is good practice
                 });
 
-            if !license_file_specified || manifest_data.and_then(|m| m.package.as_ref()).map_or(true, |p| p.license.is_none()) {
+            if !license_file_specified || manifest_data.and_then(|m| m.package.as_ref()).is_none_or(|p| p.license.is_none()) {
                  findings.push(Finding::new(
                     "STRUCT003",
                     "Missing LICENSE file in project root. Consider adding one (e.g., LICENSE-MIT or LICENSE-APACHE).".to_string(),
@@ -284,10 +324,9 @@ pub fn check_missing_denied_lints(
 mod tests {
     use super::*;
     use std::fs;
-    use std::path::PathBuf;
     use tempfile::TempDir;
     use crate::config::{Config, ChecksConfig};
-    use crate::diagnostics::{Severity, Finding};
+    use crate::diagnostics::{Severity};
     use crate::manifest::{CargoManifest, Package};
     use std::collections::HashMap;
 

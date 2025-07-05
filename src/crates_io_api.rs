@@ -1,3 +1,33 @@
+//! Crates.io API client for fetching crate version information.
+//!
+//! This module provides functionality to interact with the crates.io API to retrieve
+//! information about Rust crates, particularly their latest versions. It's designed
+//! to support dependency analysis and version checking workflows.
+//!
+//! # Features
+//!
+//! - Fetch the latest version of a crate from crates.io using its REST API
+//! - Handle API errors, network timeouts, and malformed responses gracefully
+//! - Configurable base URL for testing with mock servers
+//! - Proper User-Agent header following crates.io API guidelines
+//! - Comprehensive error handling and reporting
+//!
+//! # Usage
+//!
+//! ```rust,no_run
+//! use reqwest::blocking::Client;
+//! use crates_io_api::get_latest_versions_from_crates_io;
+//!
+//! let client = Client::new();
+//! match get_latest_versions_from_crates_io("serde", &client) {
+//!     Ok(version) => println!("Latest serde version: {}", version),
+//!     Err(e) => eprintln!("Failed to fetch version: {}", e),
+//! }
+//! ```
+//!
+//! This module is primarily intended for use in cargo-dokita's dependency analysis features.
+//! It may be useful for other tools or scripts that need to query crate versions as well.
+
 use serde::Deserialize;
 use reqwest::blocking::Client; // If using blocking client
 use std::time::Duration;
@@ -10,6 +40,7 @@ const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VE
 pub struct CratesIoCrate {
     #[serde(rename = "crate")] // The main data is under a "crate" key
     crate_data: CrateData,
+    #[allow(dead_code)]
     versions: Vec<CrateVersion>, // List of all versions, useful but we mainly need newest
 }
 
@@ -21,7 +52,9 @@ struct CrateData {
 // Not strictly needed if we only use max_version, but good for completeness
 #[derive(Deserialize, Debug)]
 struct CrateVersion {
+    #[allow(dead_code)]
     num: String, // Version number string
+    #[allow(dead_code)]
     yanked: bool,
 }
 

@@ -1,3 +1,46 @@
+//! # Cargo Dokita Diagnostics
+//!
+//! This module defines the core diagnostic structures used throughout Cargo Dokita
+//! for reporting issues, warnings, and informational findings about Rust projects.
+//!
+//! ## Features
+//! - **Severity Levels**: Categorizes findings as `Error`, `Warning`, or `Note`
+//! - **Structured Findings**: Each finding includes a unique code, message, severity, and optional location information
+//! - **Serialization Support**: All structures can be serialized/deserialized for output formatting or persistence
+//! - **Builder Pattern**: Convenient methods for creating findings with optional line numbers
+//!
+//! ## Severity Levels
+//! - **Error**: Critical issues that must be fixed (e.g., missing required fields)
+//! - **Warning**: Issues that should be addressed (e.g., outdated dependencies)
+//! - **Note**: Informational or best practice suggestions (e.g., style recommendations)
+//!
+//! ## Example Usage
+//! ```rust
+//! use cargo_dokita::diagnostics::{Finding, Severity};
+//!
+//! // Create a basic finding
+//! let finding = Finding::new(
+//!     "MD001",
+//!     "Missing license field in Cargo.toml".to_string(),
+//!     Severity::Error,
+//!     Some("Cargo.toml".to_string())
+//! );
+//!
+//! // Create a finding with line number
+//! let finding_with_line = Finding::new(
+//!     "MD002",
+//!     "Consider updating this dependency".to_string(),
+//!     Severity::Warning,
+//!     Some("Cargo.toml".to_string())
+//! ).with_line(15);
+//! ```
+//!
+//! ## Finding Codes
+//! Finding codes follow a pattern where:
+//! - **MD**: Metadata-related issues (e.g., Cargo.toml problems)
+//! - **ML**: Missing license or legal issues
+//! - Additional prefixes may be added for different check categories
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

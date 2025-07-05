@@ -1,3 +1,15 @@
+//! Dependency analysis and security auditing for Rust projects.
+//!
+//! This module provides functions to analyze dependencies in a Rust project's Cargo workspace.
+//! It includes utilities for:
+//!
+//! - Retrieving project metadata using `cargo_metadata`.
+//! - Checking for outdated dependencies by comparing current versions to the latest available on crates.io.
+//! - Auditing for known security vulnerabilities using `cargo-audit` and parsing its JSON output.
+//! - Reporting findings as structured diagnostics for further processing or display.
+//!
+//! The module is intended for use in tools that lint, audit, or maintain Rust projects, helping users keep dependencies up-to-date and secure.
+
 use std::{path::Path, process::Command};
 
 use cargo_metadata::{semver::Version, Metadata, MetadataCommand};
@@ -24,7 +36,6 @@ pub fn check_outdated_dependencies(metadata: &Metadata, http_client: &Client) ->
                 
                 for dep_node_id in &node.deps {
                     let dep_package_info = &metadata[&dep_node_id.pkg]; // Info about the dependency crate
-                    let resolved_version_str = dep_package_info.version.to_string();
 
                       if dep_package_info.source.is_none() || !dep_package_info.source.as_ref().unwrap().is_crates_io() {
                         // println!("Skipping non-crates.io dependency: {}", dep_package_info.name);
@@ -50,7 +61,7 @@ pub fn check_outdated_dependencies(metadata: &Metadata, http_client: &Client) ->
                     let resolved_dep_package = &metadata[&resolved_dep_link.pkg];
                     let current_version_str = resolved_dep_package.version.to_string();
 
-                    match crates_io_api::get_latest_versions_from_crates_io(&dep_name, http_client) {
+                    match crates_io_api::get_latest_versions_from_crates_io(dep_name, http_client) {
                         Ok(latest_version_str) => {
                             let current_ver = Version::parse(&current_version_str);
                             let latest_ver = Version::parse(&latest_version_str);
@@ -104,9 +115,8 @@ pub fn check_vulnerability(project_path: &Path) -> Vec<Finding> {
 
     match output_result {
         Ok(output) => {
-            if !output.status.success() {
+            if !output.status.success() && output.stdout.is_empty() && !output.stderr.is_empty() {
 
-                if output.stdout.is_empty() && !output.stderr.is_empty() {
                     let stderr = String::from_utf8_lossy(&output.stderr);
 
                     findings.push(Finding::new(
@@ -117,7 +127,6 @@ pub fn check_vulnerability(project_path: &Path) -> Vec<Finding> {
                     ));
 
                     return findings;
-                }
             }
 
             #[derive(Deserialize, Debug)]
@@ -277,4 +286,3 @@ mod tests {
 
 
 }
-  

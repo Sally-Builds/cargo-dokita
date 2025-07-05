@@ -1,3 +1,40 @@
+//! # Cargo Dokita Configuration
+//!
+//! This module defines the configuration structures and logic for Cargo Dokita.
+//!
+//! ## Features
+//! - Loads configuration from a TOML file (`.cargo-dokita.toml`) in the project root.
+//! - Strictly validates configuration fields using Serde's `deny_unknown_fields`.
+//! - Supports sections such as `[general]` and `[checks]` for extensible configuration.
+//! - Allows enabling/disabling specific checks by code (e.g., `MD001`).
+//! - Provides default values if no configuration file is found.
+//! - Includes comprehensive tests for deserialization, error handling, and logic.
+//!
+//! ## Example `.cargo-dokita.toml`
+//!
+//! ```toml
+//! [general]
+//!
+//! [checks]
+//! enabled = { "MD001" = true, "MD002" = false }
+//! ```
+//!
+//! ## Usage
+//! Load configuration from the project root:
+//! ```rust
+//! let config = Config::load_from_project_root(project_root)?;
+//! if config.is_check_enabled("MD001") {
+//!     // Run check MD001
+//! }
+//! ```
+
+//! 
+//! # Config
+//! 
+//! This module defines the configuration structure for Cargo Dokita.
+//! It uses TOML for configuration files and provides a way to load and validate the configuration.
+
+
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
