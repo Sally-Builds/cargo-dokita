@@ -50,6 +50,7 @@ impl ProjectBuilder {
         self
     }
 
+    #[allow(dead_code)]
     pub fn license(mut self, license: &str) -> Self {
         self.license = Some(license.to_string());
         self
@@ -289,6 +290,7 @@ pub fn analyze_project_text(project_path: &Path) -> Result<(), cargo_dokita::MyE
 }
 
 /// Analyze project helper for JSON output
+#[allow(dead_code)]
 pub fn analyze_project_json(project_path: &Path) -> Result<(), cargo_dokita::MyError> {
     match cargo_dokita::analyze_project_for_test(project_path.to_str().unwrap(), "json") {
         Ok(findings) => {
@@ -316,6 +318,7 @@ pub fn analyze_project_expect_issues(
 }
 
 /// Helper to create a project that should pass all checks
+#[allow(dead_code)]
 pub fn create_perfect_project(project_path: &Path, name: &str) -> std::io::Result<()> {
     // Create a project with all metadata and no issues
     ProjectBuilder::new(name)
