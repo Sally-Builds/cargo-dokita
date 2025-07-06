@@ -1,5 +1,7 @@
 # Cargo Dokita
 
+![CI](https://github.com/Sally-Builds/cargo-dokita/actions/workflows/rust.yml/badge.svg)
+
 A comprehensive Rust project analysis tool that performs static analysis on Rust projects to identify potential issues, security vulnerabilities, and code quality problems.
 
 ## Overview
@@ -244,7 +246,7 @@ To add a new check:
 
 ## License
 
-This project is licensed under [Your License Here] - see the LICENSE file for details.
+This project is licensed under MIT - see the LICENSE file for details.
 
 ## Acknowledgments
 
