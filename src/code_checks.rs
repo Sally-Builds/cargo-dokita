@@ -110,7 +110,7 @@ pub fn check_code_patterns(rust_files: &[PathBuf], project_root: &Path) -> Vec<F
             Err(e) => {
                 per_file_findings.push(Finding::new(
                     "IO001", // File Read Error
-                    format!("Failed to read file {:?}: {}", file_path, e),
+                    format!("Failed to read file {file_path:?}: {e}"),
                     Severity::Warning,
                     Some(file_path.to_string_lossy().into_owned()),
                 ));
@@ -160,7 +160,7 @@ pub fn check_code_patterns(rust_files: &[PathBuf], project_root: &Path) -> Vec<F
                 let comment_type = TODO_COMMENT_REGEX.captures(line_content).unwrap().get(1).unwrap().as_str();
                 per_file_findings.push(Finding::new(
                     "CODE004",
-                    format!("Found '{}' comment. Address or create an issue for it.", comment_type),
+                    format!("Found '{comment_type}' comment. Address or create an issue for it."),
                     Severity::Note,
                     Some(file_path.to_string_lossy().into_owned()),
                 ).with_line(line_number_for_finding));
@@ -195,7 +195,7 @@ pub fn check_project_structure(
             let default_lib_name = p.name.replace('-', "_");
             project_root
                 .join("src")
-                .join(format!("{}.rs", default_lib_name))
+                .join(format!("{default_lib_name}.rs"))
                 .exists()
                 || has_lib_rs
         })
@@ -709,15 +709,14 @@ pub fn hello() {
 
         // Create multiple files to test parallel processing
         for i in 0..10 {
-            let file_path = src_dir.join(format!("module_{}.rs", i));
+            let file_path = src_dir.join(format!("module_{i}.rs"));
             let content = format!(
                 r#"
-// TODO: implement module {}
-pub fn function_{}() {{
+// TODO: implement module {i}
+pub fn function_{i}() {{
     let result = some_operation().unwrap();
 }}
-"#,
-                i, i
+"#
             );
             fs::write(&file_path, content).unwrap();
         }

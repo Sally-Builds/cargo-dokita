@@ -120,7 +120,7 @@ pub fn analyze_project(project_path: &str, output_format: &str) -> Result<(), My
     let project_path = match fs::canonicalize(project_path) {
         Ok(path) => path,
         Err(e) => {
-            eprint!("Error Could not resolve project path - {:?}", e);
+            eprint!("Error Could not resolve project path - {e:?}");
             return Err(MyError::UnresolvableProjectPath);
         }
     };
@@ -169,15 +169,12 @@ pub fn analyze_project(project_path: &str, output_format: &str) -> Result<(), My
     let (manifest_findings, dep_findings) = rayon::join(
         || {
             let mut f = Vec::new();
-            match cargo_manifest {
                 // md is Option<CargoManifest>
-                Ok(md) => {
+                if let Ok(md)  = cargo_manifest {
                     f.extend(manifest::check_missing_metadata(&md, &config));
                     f.extend(manifest::check_dependency_versions(&md, &config));
                     f.extend(manifest::check_rust_edition(&md));
                 }
-                Err(_) => {}
-            }
             f
         },
         || {
@@ -189,7 +186,7 @@ pub fn analyze_project(project_path: &str, output_format: &str) -> Result<(), My
                     f.extend(outdated_dependencies_findings);
                 }
                 Err(e) => {
-                    println!("{:?}", e);
+                    println!("{e:?}");
                 }
             }
             let vulnerability_findings = check_vulnerability(project_path.as_path());
@@ -219,9 +216,9 @@ pub fn analyze_project(project_path: &str, output_format: &str) -> Result<(), My
     } else {
         if output_format == "json" {
             match serde_json::to_string_pretty(&findings) {
-                Ok(json_output) => println!("{}", json_output),
+                Ok(json_output) => println!("{json_output}", ),
                 Err(e) => {
-                    eprintln!("Error serializing findings to JSON: {}", e);
+                    eprintln!("Error serializing findings to JSON: {e:?}");
                     process::exit(1);
                 }
             }
@@ -237,13 +234,13 @@ pub fn analyze_project(project_path: &str, output_format: &str) -> Result<(), My
                 stdout
                     .set_color(ColorSpec::new().set_fg(Some(Color::Yellow)).set_bold(true))
                     .unwrap_or_default();
-                write!(&mut stdout, "[{}]", severity_str).unwrap_or_default();
+                write!(&mut stdout, "[{severity_str}]").unwrap_or_default();
                 stdout.reset().unwrap_or_default();
 
                 let file_info = finding.file_path.as_deref().unwrap_or("N/A");
                 let line_info = finding
                     .line_number
-                    .map_or("".to_string(), |l| format!("{}", l));
+                    .map_or("".to_string(), |l| format!("{l}"));
 
                 stdout
                     .set_color(ColorSpec::new().set_fg(Some(Color::Magenta)))
@@ -320,7 +317,7 @@ pub fn analyze_project_for_test(
     let project_path = match fs::canonicalize(project_path) {
         Ok(path) => path,
         Err(e) => {
-            eprint!("Error Could not resolve project path - {:?}", e);
+            eprint!("Error Could not resolve project path - {e:?}");
             return Err(MyError::UnresolvableProjectPath);
         }
     };

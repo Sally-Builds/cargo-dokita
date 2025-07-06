@@ -61,7 +61,7 @@ pub fn get_latest_versions_from_crates_io(
     crate_name: &str,
     client: &Client,
 ) -> Result<String, String> {
-    let url = format!("{}/{}", CRATES_IO_API_BASE, crate_name);
+    let url = format!("{CRATES_IO_API_BASE}/{crate_name}");
 
     let res = client
         .get(&url)
@@ -70,8 +70,7 @@ pub fn get_latest_versions_from_crates_io(
         .send()
         .map_err(|e| {
             format!(
-                "Failed to send request to crate.io for {}: {}",
-                crate_name, e
+                "Failed to send request to crate.io for {crate_name}: {e}"
             )
         });
 
@@ -87,12 +86,11 @@ pub fn get_latest_versions_from_crates_io(
 
             res.json().map_err(|e| {
                 format!(
-                    "Failed to parse JSON response from crates.io for {}: {}",
-                    crate_name, e
+                    "Failed to parse JSON response from crates.io for {crate_name}: {e}"
                 )
             })?
         }
-        Err(e) => return Err(format!("Something went wrong - {}", e)),
+        Err(e) => return Err(format!("Something went wrong - {e}")),
     };
 
     Ok(api_response.crate_data.max_version)
@@ -104,7 +102,7 @@ pub fn get_latest_versions_from_crates_io_with_base_url(
     client: &reqwest::blocking::Client,
     base_url: &str,
 ) -> Result<String, String> {
-    let url = format!("{}/{}", base_url, crate_name);
+    let url = format!("{base_url}/{crate_name}");
 
     let res = client
         .get(&url)
@@ -113,8 +111,7 @@ pub fn get_latest_versions_from_crates_io_with_base_url(
         .send()
         .map_err(|e| {
             format!(
-                "Failed to send request to crate.io for {}: {}",
-                crate_name, e
+                "Failed to send request to crate.io for {crate_name}: {e}"
             )
         });
 
@@ -130,12 +127,11 @@ pub fn get_latest_versions_from_crates_io_with_base_url(
 
             res.json().map_err(|e| {
                 format!(
-                    "Failed to parse JSON response from crates.io for {}: {}",
-                    crate_name, e
+                    "Failed to parse JSON response from crates.io for {crate_name}: {e}"
                 )
             })?
         }
-        Err(e) => return Err(format!("Something went wrong - {}", e)),
+        Err(e) => return Err(format!("Something went wrong - {e}")),
     };
 
     Ok(api_response.crate_data.max_version)
@@ -453,7 +449,7 @@ mod tests {
     fn test_url_construction_logic() {
         let base = "http://example.com";
         let crate_name = "serde";
-        let expected_url = format!("{}/{}", base, crate_name);
+        let expected_url = format!("{base}/{crate_name}");
 
         assert_eq!(expected_url, "http://example.com/serde");
     }

@@ -66,15 +66,13 @@ impl CargoManifest {
     pub fn parse(path_to_cargo_toml: &Path) -> Result<Self, String> {
         let content = fs::read_to_string(path_to_cargo_toml).map_err(|e| {
             format!(
-                "Failed to read Cargo.toml at {:?}: {}",
-                path_to_cargo_toml, e
+                "Failed to read Cargo.toml at {path_to_cargo_toml:?}: {e}",
             )
         })?;
 
         toml::from_str(&content).map_err(|e| {
             format!(
-                "Failed to parse Cargo.toml at {:?}: {}",
-                path_to_cargo_toml, e
+                "Failed to parse Cargo.toml at {path_to_cargo_toml:?}: {e:?}"
             )
         })
     }
@@ -132,7 +130,7 @@ pub fn check_missing_metadata(manifest: &CargoManifest, config: &Config) -> Vec<
                     } else {
                         findings.push(Finding::new(
                             "MD004",
-                            format!("The 'readme' field in Cargo.toml has an unexpected value ( '{}' ). Expected a file path string (e.g., \"README.md\") or `false`.", readme_value),
+                            format!("The 'readme' field in Cargo.toml has an unexpected value ( '{readme_value}' ). Expected a file path string (e.g., \"README.md\") or `false`."),
                             Severity::Warning, // This is more than a note, it's likely a misconfiguration.
                             Some("Cargo.toml".to_string()),
                         ));
@@ -166,8 +164,7 @@ pub fn check_dependency_versions(manifest: &CargoManifest, config: &Config) -> V
                     findings.push(Finding::new(
                         "DP001",
                         format!(
-                            "Wildcard version \"*\" used for {} dependency '{}'. Specify a version range.",
-                            dep_type, name
+                            "Wildcard version \"*\" used for {dep_type} dependency '{name}'. Specify a version range."
                         ),
                         Severity::Warning,
                         Some("Cargo.toml".to_string()),
@@ -197,8 +194,7 @@ pub fn check_rust_edition(manifest: &CargoManifest) -> Vec<Finding> {
                 findings.push(Finding::new(
                     "ED001",
                     format!(
-                        "Project uses Rust edition '{}', consider updating to '{}'.",
-                        edition, LATEST_STABLE_EDITION
+                        "Project uses Rust edition '{edition}', consider updating to '{LATEST_STABLE_EDITION}'."
                     ),
                     Severity::Note,
                     Some("Cargo.toml".to_string()),
@@ -209,8 +205,8 @@ pub fn check_rust_edition(manifest: &CargoManifest) -> Vec<Finding> {
                 findings.push(Finding::new(
                     "ED002",
                     format!(
-                        "Project does not specify a Rust edition (implicitly 2015), consider specifying and updating to '{}'.",
-                         LATEST_STABLE_EDITION
+                        "Project does not specify a Rust edition (implicitly 2015), consider specifying and updating to '{LATEST_STABLE_EDITION}'."
+                         
                     ),
                     Severity::Note,
                     Some("Cargo.toml".to_string()),

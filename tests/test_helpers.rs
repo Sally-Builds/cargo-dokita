@@ -80,17 +80,17 @@ edition = "{}"
         );
 
         if let Some(ref description) = self.description {
-            cargo_toml.push_str(&format!("description = \"{}\"\n", description));
+            cargo_toml.push_str(&format!("description = \"{description}\"\n"));
         }
 
         if let Some(ref license) = self.license {
-            cargo_toml.push_str(&format!("license = \"{}\"\n", license));
+            cargo_toml.push_str(&format!("license = \"{license}\"\n"));
         }
 
         if !self.dependencies.is_empty() {
             cargo_toml.push_str("\n[dependencies]\n");
             for (name, version) in &self.dependencies {
-                cargo_toml.push_str(&format!("{} = \"{}\"\n", name, version));
+                cargo_toml.push_str(&format!("{name} = \"{version}\"\n"));
             }
         }
 
@@ -116,7 +116,7 @@ edition = "{}"
             if i > 0 {
                 workspace_toml.push_str(", ");
             }
-            workspace_toml.push_str(&format!("\"{}\"", member));
+            workspace_toml.push_str(&format!("\"{member}\""));
         }
         workspace_toml.push_str("]\n");
 
@@ -137,11 +137,13 @@ edition = "{}"
 }
 
 /// Helper to create a basic Rust project
+#[allow(dead_code)]
 pub fn create_basic_rust_project(project_path: &Path, name: &str) -> std::io::Result<()> {
     ProjectBuilder::new(name).build_in(project_path)
 }
 
 /// Helper to create a Rust project with dependencies
+#[allow(dead_code)]
 pub fn create_rust_project_with_deps(
     project_path: &Path,
     name: &str,
@@ -155,11 +157,13 @@ pub fn create_rust_project_with_deps(
 }
 
 /// Helper to create a Rust project with missing metadata
+#[allow(dead_code)]
 pub fn create_rust_project_minimal(project_path: &Path, name: &str) -> std::io::Result<()> {
     ProjectBuilder::new(name).build_in(project_path)
 }
 
 /// Helper to create a Rust project with specific edition
+#[allow(dead_code)]
 pub fn create_rust_project_with_edition(
     project_path: &Path,
     name: &str,
@@ -224,8 +228,15 @@ pub fn create_non_rust_project(project_path: &Path) -> std::io::Result<()> {
 
 /// Test setup wrapper that provides a temporary directory and project path
 pub struct TestEnvironment {
+    #[allow(dead_code)]
     pub temp_dir: TempDir,
     pub project_path: PathBuf,
+}
+
+impl Default for TestEnvironment {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TestEnvironment {
@@ -242,6 +253,7 @@ impl TestEnvironment {
         &self.project_path
     }
 
+    #[allow(dead_code)]
     pub fn path_str(&self) -> &str {
         self.project_path.to_str().unwrap()
     }
@@ -300,10 +312,7 @@ pub fn analyze_project_json(project_path: &Path) -> Result<(), cargo_dokita::MyE
 pub fn analyze_project_expect_issues(
     project_path: &Path,
 ) -> Result<Vec<cargo_dokita::diagnostics::Finding>, cargo_dokita::MyError> {
-    match cargo_dokita::analyze_project_for_test(project_path.to_str().unwrap(), "text") {
-        Ok(findings) => Ok(findings),
-        Err(e) => Err(e),
-    }
+    cargo_dokita::analyze_project_for_test(project_path.to_str().unwrap(), "text")
 }
 
 /// Helper to create a project that should pass all checks
@@ -316,15 +325,14 @@ pub fn create_perfect_project(project_path: &Path, name: &str) -> std::io::Resul
 
     // Create README
     let readme_content = format!(
-        r#"# {}
+        r#"# {name}
 
 A well-documented test project.
 
 ## License
 
 MIT
-"#,
-        name
+"#
     );
     std::fs::write(project_path.join("README.md"), readme_content)?;
 

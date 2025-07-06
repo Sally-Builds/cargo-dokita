@@ -79,9 +79,7 @@ pub fn check_outdated_dependencies(metadata: &Metadata, http_client: &Client) ->
                                     findings.push(Finding::new(
                                         "DP002", // Outdated Dependency
                                         format!(
-                                            "Direct dependency '{}' is outdated. Current: {}, Latest: {}",
-                                            dep_name, cur, latest
-                                        ),
+                                            "Direct dependency '{dep_name}' is outdated. Current: {cur}, Latest: {latest}"                                        ),
                                         Severity::Note, // Or Warning, depending on preference
                                         Some("Cargo.toml".to_string()), // Or Cargo.lock
                                     ));
@@ -89,22 +87,19 @@ pub fn check_outdated_dependencies(metadata: &Metadata, http_client: &Client) ->
                             } else {
                                 // Failed to parse versions, maybe log this
                                 eprintln!(
-                                    "Warning: Could not parse versions for {}: current '{}', latest '{}'",
-                                    dep_name, current_version_str, latest_version_str
+                                    "Warning: Could not parse versions for {dep_name}: current '{current_version_str}', latest '{latest_version_str}'"
                                 );
                             }
                         }
                         Err(e) => {
                             eprintln!(
-                                "Warning: Could not fetch latest version for {}: {}",
-                                dep_name, e
+                                "Warning: Could not fetch latest version for {dep_name}: {e:?}"
                             );
                             // Optionally create a finding for API fetch failures
                             findings.push(Finding::new(
                                 "API001",
                                 format!(
-                                    "Failed to fetch latest version for dependency '{}': {}",
-                                    dep_name, e
+                                    "Failed to fetch latest version for dependency '{dep_name}': {e}"
                                 ),
                                 Severity::Warning, // This is an issue with cargo-doctor itself or network
                                 None,
@@ -216,7 +211,7 @@ pub fn check_vulnerability(project_path: &Path) -> Vec<Finding> {
                         let stderr = String::from_utf8_lossy(&output.stderr);
                         findings.push(Finding::new(
                             "AUD002",
-                            format!("cargo-audit indicated an issue but no vulnerabilities found in JSON: {}", stderr),
+                            format!("cargo-audit indicated an issue but no vulnerabilities found in JSON: {stderr}"),
                             Severity::Warning,
                             Some(project_path.join("Cargo.lock").to_string_lossy().into_owned()),
                         ));
@@ -232,7 +227,7 @@ pub fn check_vulnerability(project_path: &Path) -> Vec<Finding> {
                         );
                         findings.push(Finding::new(
                             "AUD003", // Audit Parse Error
-                            format!("Failed to parse cargo-audit JSON output: {}", e),
+                            format!("Failed to parse cargo-audit JSON output: {e}"),
                             Severity::Warning,
                             Some(
                                 project_path
@@ -250,8 +245,7 @@ pub fn check_vulnerability(project_path: &Path) -> Vec<Finding> {
             findings.push(Finding::new(
                 "AUD004", // Audit Not Found or Execution Error
                 format!(
-                    "Failed to execute 'cargo audit'. Is it installed and in PATH? Error: {}",
-                    e
+                    "Failed to execute 'cargo audit'. Is it installed and in PATH? Error: {e}"
                 ),
                 Severity::Warning, // Can't perform check, so it's a warning for the user
                 None,

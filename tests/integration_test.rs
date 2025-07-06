@@ -11,8 +11,7 @@ fn test_analyze_valid_rust_project() {
     let result = analyze_project_text(env.path());
     assert!(
         result.is_ok(),
-        "Expected project to pass all checks, but got: {:?}",
-        result
+        "Expected project to pass all checks, but got: {result:?}"
     );
 }
 

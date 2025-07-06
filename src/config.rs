@@ -73,9 +73,9 @@ impl Config {
         let config_path = project_root.join(CONFIG_FILE_NAME);
         if config_path.exists() {
             let content = fs::read_to_string(&config_path)
-                .map_err(|e| format!("Failed to read config file {:?}: {}", config_path, e))?;
+                .map_err(|e| format!("Failed to read config file {config_path:?}: {e}"))?;
             toml::from_str(&content)
-                .map_err(|e| format!("Failed to parse config file {:?}: {}", config_path, e))
+                .map_err(|e| format!("Failed to parse config file {config_path:?}: {e}"))
         } else {
             // Return default config if no file found
             Ok(Config::default())
@@ -279,7 +279,7 @@ enabled = { "MD001" = true, "MD002" = false }
     #[test]
     fn test_config_debug() {
         let config = Config::default();
-        let debug_str = format!("{:?}", config);
+        let debug_str = format!("{config:?}");
         assert!(debug_str.contains("Config"));
         assert!(debug_str.contains("general"));
         assert!(debug_str.contains("checks"));
