@@ -244,9 +244,7 @@ pub fn check_vulnerability(project_path: &Path) -> Vec<Finding> {
             // This means `cargo audit` command itself could not be run (e.g., not installed)
             findings.push(Finding::new(
                 "AUD004", // Audit Not Found or Execution Error
-                format!(
-                    "Failed to execute 'cargo audit'. Is it installed and in PATH? Error: {e}"
-                ),
+                format!("Failed to execute 'cargo audit'. Is it installed and in PATH? Error: {e}"),
                 Severity::Warning, // Can't perform check, so it's a warning for the user
                 None,
             ));

@@ -169,12 +169,12 @@ pub fn analyze_project(project_path: &str, output_format: &str) -> Result<(), My
     let (manifest_findings, dep_findings) = rayon::join(
         || {
             let mut f = Vec::new();
-                // md is Option<CargoManifest>
-                if let Ok(md)  = cargo_manifest {
-                    f.extend(manifest::check_missing_metadata(&md, &config));
-                    f.extend(manifest::check_dependency_versions(&md, &config));
-                    f.extend(manifest::check_rust_edition(&md));
-                }
+            // md is Option<CargoManifest>
+            if let Ok(md) = cargo_manifest {
+                f.extend(manifest::check_missing_metadata(&md, &config));
+                f.extend(manifest::check_dependency_versions(&md, &config));
+                f.extend(manifest::check_rust_edition(&md));
+            }
             f
         },
         || {
@@ -216,7 +216,7 @@ pub fn analyze_project(project_path: &str, output_format: &str) -> Result<(), My
     } else {
         if output_format == "json" {
             match serde_json::to_string_pretty(&findings) {
-                Ok(json_output) => println!("{json_output}", ),
+                Ok(json_output) => println!("{json_output}",),
                 Err(e) => {
                     eprintln!("Error serializing findings to JSON: {e:?}");
                     process::exit(1);

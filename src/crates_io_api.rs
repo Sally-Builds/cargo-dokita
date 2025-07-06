@@ -68,11 +68,7 @@ pub fn get_latest_versions_from_crates_io(
         .header(reqwest::header::USER_AGENT, USER_AGENT)
         .timeout(Duration::from_secs(30))
         .send()
-        .map_err(|e| {
-            format!(
-                "Failed to send request to crate.io for {crate_name}: {e}"
-            )
-        });
+        .map_err(|e| format!("Failed to send request to crate.io for {crate_name}: {e}"));
 
     let api_response: CratesIoCrate = match res {
         Ok(res) => {
@@ -85,9 +81,7 @@ pub fn get_latest_versions_from_crates_io(
             }
 
             res.json().map_err(|e| {
-                format!(
-                    "Failed to parse JSON response from crates.io for {crate_name}: {e}"
-                )
+                format!("Failed to parse JSON response from crates.io for {crate_name}: {e}")
             })?
         }
         Err(e) => return Err(format!("Something went wrong - {e}")),
@@ -109,11 +103,7 @@ pub fn get_latest_versions_from_crates_io_with_base_url(
         .header(reqwest::header::USER_AGENT, USER_AGENT)
         .timeout(Duration::from_secs(30))
         .send()
-        .map_err(|e| {
-            format!(
-                "Failed to send request to crate.io for {crate_name}: {e}"
-            )
-        });
+        .map_err(|e| format!("Failed to send request to crate.io for {crate_name}: {e}"));
 
     let api_response: CratesIoCrate = match res {
         Ok(res) => {
@@ -126,9 +116,7 @@ pub fn get_latest_versions_from_crates_io_with_base_url(
             }
 
             res.json().map_err(|e| {
-                format!(
-                    "Failed to parse JSON response from crates.io for {crate_name}: {e}"
-                )
+                format!("Failed to parse JSON response from crates.io for {crate_name}: {e}")
             })?
         }
         Err(e) => return Err(format!("Something went wrong - {e}")),

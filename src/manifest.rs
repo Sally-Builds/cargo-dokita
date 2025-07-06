@@ -64,17 +64,11 @@ pub struct CargoManifest {
 
 impl CargoManifest {
     pub fn parse(path_to_cargo_toml: &Path) -> Result<Self, String> {
-        let content = fs::read_to_string(path_to_cargo_toml).map_err(|e| {
-            format!(
-                "Failed to read Cargo.toml at {path_to_cargo_toml:?}: {e}",
-            )
-        })?;
+        let content = fs::read_to_string(path_to_cargo_toml)
+            .map_err(|e| format!("Failed to read Cargo.toml at {path_to_cargo_toml:?}: {e}",))?;
 
-        toml::from_str(&content).map_err(|e| {
-            format!(
-                "Failed to parse Cargo.toml at {path_to_cargo_toml:?}: {e:?}"
-            )
-        })
+        toml::from_str(&content)
+            .map_err(|e| format!("Failed to parse Cargo.toml at {path_to_cargo_toml:?}: {e:?}"))
     }
 }
 
@@ -206,7 +200,6 @@ pub fn check_rust_edition(manifest: &CargoManifest) -> Vec<Finding> {
                     "ED002",
                     format!(
                         "Project does not specify a Rust edition (implicitly 2015), consider specifying and updating to '{LATEST_STABLE_EDITION}'."
-                         
                     ),
                     Severity::Note,
                     Some("Cargo.toml".to_string()),
