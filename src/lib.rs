@@ -1,6 +1,6 @@
 //! # Cargo Dokita
 //!
-//! A comprehensive Rust project analysis tool that performs static analysis on Rust projects 
+//! A comprehensive Rust project analysis tool that performs static analysis on Rust projects
 //! to identify potential issues, security vulnerabilities, and code quality problems.
 //!
 //! ## Features
@@ -35,12 +35,12 @@
 //! - [`config`] - Configuration file handling and settings
 
 // filepath: /home/sally-nwamama/Desktop/rust_projects/cargo-dokita/src/lib.rs
-use std::{fs, path::{Path}, process};
 use dependency_analysis::check_vulnerability;
+use diagnostics::{Finding, Severity};
 use reqwest::blocking::Client as HttpClient;
 use std::io::Write; // For termcolor
+use std::{fs, path::Path, process};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
-use diagnostics::{Finding,Severity};
 
 /// Cargo.toml manifest parsing and validation functionality.
 pub mod manifest;
@@ -70,7 +70,6 @@ pub enum MyError {
     /// Analysis completed but found issues. Contains the list of findings for test purposes.
     HasIssues(Vec<Finding>), // For test purposes
 }
-
 
 /// Analyzes a Rust project for potential issues and vulnerabilities.
 ///
@@ -116,28 +115,31 @@ pub enum MyError {
 ///
 /// This function may panic if there are issues with terminal color output,
 /// but such panics are handled gracefully with `unwrap_or_default()`.
-pub fn analyze_project (project_path: &str, output_format: &str) -> Result<(), MyError> {
+pub fn analyze_project(project_path: &str, output_format: &str) -> Result<(), MyError> {
     let mut findings: Vec<Finding> = Vec::new();
     let project_path = match fs::canonicalize(project_path) {
         Ok(path) => path,
         Err(e) => {
             eprint!("Error Could not resolve project path - {:?}", e);
-            return Err(MyError::UnresolvableProjectPath)
-        },
+            return Err(MyError::UnresolvableProjectPath);
+        }
     };
 
     let mut stdout = StandardStream::stdout(ColorChoice::Auto);
 
-
     let config = match config::Config::load_from_project_root(&project_path) {
         Ok(cfg) => {
-            if  project_path.join(config::CONFIG_FILE_NAME).exists() {
+            if project_path.join(config::CONFIG_FILE_NAME).exists() {
                 println!("Loaded configuration from {}", config::CONFIG_FILE_NAME);
             }
             cfg
         }
         Err(e) => {
-            println!("Warning: Could not load or parse {}: {}. Using default configuration.", config::CONFIG_FILE_NAME, e);
+            println!(
+                "Warning: Could not load or parse {}: {}. Using default configuration.",
+                config::CONFIG_FILE_NAME,
+                e
+            );
             // Optionally add a Finding for bad config
             config::Config::default()
         }
@@ -156,49 +158,63 @@ pub fn analyze_project (project_path: &str, output_format: &str) -> Result<(), M
     let cargo_manifest = manifest::CargoManifest::parse(cargo_toml_path.as_path());
 
     if let Ok(data) = &cargo_manifest {
-            findings.extend(code_checks::check_project_structure(&project_path, Some(data)));
+        findings.extend(code_checks::check_project_structure(
+            &project_path,
+            Some(data),
+        ));
     }
 
     let http_client = HttpClient::new();
 
-    let (manifest_findings, dep_findings) = rayon::join(|| {
-        let mut f = Vec::new();
-            match cargo_manifest { // md is Option<CargoManifest>
+    let (manifest_findings, dep_findings) = rayon::join(
+        || {
+            let mut f = Vec::new();
+            match cargo_manifest {
+                // md is Option<CargoManifest>
                 Ok(md) => {
-                        f.extend(manifest::check_missing_metadata(&md, &config));
-                        f.extend(manifest::check_dependency_versions(&md, &config));
-                        f.extend(manifest::check_rust_edition(&md));
-                    },
-                Err(_) => {
-
+                    f.extend(manifest::check_missing_metadata(&md, &config));
+                    f.extend(manifest::check_dependency_versions(&md, &config));
+                    f.extend(manifest::check_rust_edition(&md));
                 }
-
-            } 
-        f
-    }, || {
-        let mut f = Vec::new();
-        match dependency_analysis::get_project_metadata(cargo_toml_path.as_path()) {
+                Err(_) => {}
+            }
+            f
+        },
+        || {
+            let mut f = Vec::new();
+            match dependency_analysis::get_project_metadata(cargo_toml_path.as_path()) {
                 Ok(metadata) => {
-                    let outdated_dependencies_findings = dependency_analysis::check_outdated_dependencies(&metadata, &http_client);
+                    let outdated_dependencies_findings =
+                        dependency_analysis::check_outdated_dependencies(&metadata, &http_client);
                     f.extend(outdated_dependencies_findings);
-                },
+                }
                 Err(e) => {
                     println!("{:?}", e);
                 }
             }
-        let vulnerability_findings = check_vulnerability(project_path.as_path());
-        f.extend(vulnerability_findings);
-        f
-    });
+            let vulnerability_findings = check_vulnerability(project_path.as_path());
+            f.extend(vulnerability_findings);
+            f
+        },
+    );
 
     findings.extend(manifest_findings);
     findings.extend(dep_findings);
 
-    findings.extend(code_checks::check_missing_denied_lints(project_path.as_path(), &config));
+    findings.extend(code_checks::check_missing_denied_lints(
+        project_path.as_path(),
+        &config,
+    ));
 
     if findings.is_empty() {
-        stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green))).unwrap_or_default();
-        writeln!(&mut stdout, "No issues found. Your project looks healthy (based on current checks)!").unwrap_or_default();
+        stdout
+            .set_color(ColorSpec::new().set_fg(Some(Color::Green)))
+            .unwrap_or_default();
+        writeln!(
+            &mut stdout,
+            "No issues found. Your project looks healthy (based on current checks)!"
+        )
+        .unwrap_or_default();
         stdout.reset().unwrap_or_default();
     } else {
         if output_format == "json" {
@@ -209,7 +225,7 @@ pub fn analyze_project (project_path: &str, output_format: &str) -> Result<(), M
                     process::exit(1);
                 }
             }
-        }else {
+        } else {
             for finding in &findings {
                 // Basic output, can be improved with termcolor later
                 let severity_str = match finding.severity {
@@ -218,27 +234,39 @@ pub fn analyze_project (project_path: &str, output_format: &str) -> Result<(), M
                     Severity::Note => "NOTE",
                 };
 
-                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)).set_bold(true)).unwrap_or_default();
+                stdout
+                    .set_color(ColorSpec::new().set_fg(Some(Color::Yellow)).set_bold(true))
+                    .unwrap_or_default();
                 write!(&mut stdout, "[{}]", severity_str).unwrap_or_default();
                 stdout.reset().unwrap_or_default();
 
                 let file_info = finding.file_path.as_deref().unwrap_or("N/A");
-                let line_info = finding.line_number.map_or("".to_string(), |l| {
-                    format!("{}", l)
-                });
+                let line_info = finding
+                    .line_number
+                    .map_or("".to_string(), |l| format!("{}", l));
 
-                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Magenta))).unwrap_or_default();
+                stdout
+                    .set_color(ColorSpec::new().set_fg(Some(Color::Magenta)))
+                    .unwrap_or_default();
                 write!(&mut stdout, " ({})", finding.code).unwrap_or_default();
                 stdout.reset().unwrap_or_default();
 
-                writeln!(&mut stdout, ": {} [{}{}]", finding.message, file_info, line_info).unwrap_or_default();
+                writeln!(
+                    &mut stdout,
+                    ": {} [{}{}]",
+                    finding.message, file_info, line_info
+                )
+                .unwrap_or_default();
             }
         }
 
         writeln!(&mut stdout, "\nFound {} issues:", findings.len()).unwrap_or_default();
     }
 
-    if findings.iter().any(|f| matches!(f.severity, Severity::Error | Severity::Warning)) {
+    if findings
+        .iter()
+        .any(|f| matches!(f.severity, Severity::Error | Severity::Warning))
+    {
         process::exit(1);
     }
 
@@ -284,17 +312,20 @@ pub fn analyze_project (project_path: &str, output_format: &str) -> Result<(), M
 ///     Err(e) => eprintln!("Analysis failed: {:?}", e),
 /// }
 /// ```
-pub fn analyze_project_for_test(project_path: &str, _output_format: &str) -> Result<Vec<Finding>, MyError> {
+pub fn analyze_project_for_test(
+    project_path: &str,
+    _output_format: &str,
+) -> Result<Vec<Finding>, MyError> {
     let mut findings: Vec<Finding> = Vec::new();
     let project_path = match fs::canonicalize(project_path) {
         Ok(path) => path,
         Err(e) => {
             eprint!("Error Could not resolve project path - {:?}", e);
-            return Err(MyError::UnresolvableProjectPath)
-        },
+            return Err(MyError::UnresolvableProjectPath);
+        }
     };
 
-    let config =  config::Config::load_from_project_root(&project_path).unwrap_or_default();
+    let config = config::Config::load_from_project_root(&project_path).unwrap_or_default();
 
     // Code checks first (before checking if it's a Rust project)
     let rust_files = code_checks::collect_rust_files(project_path.as_path());
@@ -307,35 +338,46 @@ pub fn analyze_project_for_test(project_path: &str, _output_format: &str) -> Res
     let cargo_toml_path = project_path.join("Cargo.toml");
     let cargo_manifest = manifest::CargoManifest::parse(cargo_toml_path.as_path());
 
-        if let Ok(data) = &cargo_manifest {
-            findings.extend(code_checks::check_project_structure(&project_path, Some(data)));
-        }
-
+    if let Ok(data) = &cargo_manifest {
+        findings.extend(code_checks::check_project_structure(
+            &project_path,
+            Some(data),
+        ));
+    }
 
     let http_client = HttpClient::new();
 
-    let (manifest_findings, dep_findings) = rayon::join(|| {
-        let mut f = Vec::new();
+    let (manifest_findings, dep_findings) = rayon::join(
+        || {
+            let mut f = Vec::new();
             if let Ok(md) = cargo_manifest {
                 f.extend(manifest::check_missing_metadata(&md, &config));
                 f.extend(manifest::check_dependency_versions(&md, &config));
                 f.extend(manifest::check_rust_edition(&md));
             }
-        f
-    }, || {
-        let mut f = Vec::new();
-            if let Ok(metadata) = dependency_analysis::get_project_metadata(cargo_toml_path.as_path()) {
-                let outdated_dependencies_findings = dependency_analysis::check_outdated_dependencies(&metadata, &http_client);
+            f
+        },
+        || {
+            let mut f = Vec::new();
+            if let Ok(metadata) =
+                dependency_analysis::get_project_metadata(cargo_toml_path.as_path())
+            {
+                let outdated_dependencies_findings =
+                    dependency_analysis::check_outdated_dependencies(&metadata, &http_client);
                 f.extend(outdated_dependencies_findings);
             }
-        let vulnerability_findings = check_vulnerability(project_path.as_path());
-        f.extend(vulnerability_findings);
-        f
-    });
+            let vulnerability_findings = check_vulnerability(project_path.as_path());
+            f.extend(vulnerability_findings);
+            f
+        },
+    );
 
     findings.extend(manifest_findings);
     findings.extend(dep_findings);
-    findings.extend(code_checks::check_missing_denied_lints(project_path.as_path(), &config));
+    findings.extend(code_checks::check_missing_denied_lints(
+        project_path.as_path(),
+        &config,
+    ));
 
     Ok(findings)
 }
@@ -368,16 +410,14 @@ pub fn analyze_project_for_test(project_path: &str, _output_format: &str) -> Res
 /// ```
 fn is_rust_project(project_path: &Path) -> bool {
     if !project_path.is_dir() {
-        return false
+        return false;
     }
 
     project_path.join("Cargo.toml").is_file()
-    
-
 }
 
 /// Unit tests for the library functionality.
-/// 
+///
 /// This module contains tests for the core analysis functions and helper utilities.
 /// Tests use the [`analyze_project_for_test`] function to avoid side effects.
 #[cfg(test)]

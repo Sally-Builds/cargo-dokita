@@ -55,7 +55,7 @@ pub struct Finding {
     pub code: String, // A unique code for the type of finding, e.g., "MD001" for missing license
     pub message: String,
     pub severity: Severity,
-    pub file_path: Option<String>, // e.g., "Cargo.toml"
+    pub file_path: Option<String>,  // e.g., "Cargo.toml"
     pub line_number: Option<usize>, // Optional: for more precise location (harder for TOML)
 }
 
@@ -75,11 +75,9 @@ impl Finding {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[test]
     fn create_finding_with_file_path() {
@@ -94,7 +92,6 @@ mod tests {
         assert_eq!(message, findings.message);
         assert_eq!(file_path, findings.file_path);
         assert_eq!(Severity::Error, findings.severity);
-
     }
 
     #[test]

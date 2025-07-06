@@ -28,10 +28,9 @@
 //! This module is primarily intended for use in cargo-dokita's dependency analysis features.
 //! It may be useful for other tools or scripts that need to query crate versions as well.
 
-use serde::Deserialize;
 use reqwest::blocking::Client; // If using blocking client
+use serde::Deserialize;
 use std::time::Duration;
-
 
 const CRATES_IO_API_BASE: &str = "https://crates.io/api/v1/crates";
 const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -58,8 +57,10 @@ struct CrateVersion {
     yanked: bool,
 }
 
-
-pub fn get_latest_versions_from_crates_io(crate_name: &str, client: &Client) -> Result<String, String> {
+pub fn get_latest_versions_from_crates_io(
+    crate_name: &str,
+    client: &Client,
+) -> Result<String, String> {
     let url = format!("{}/{}", CRATES_IO_API_BASE, crate_name);
 
     let res = client
@@ -67,22 +68,31 @@ pub fn get_latest_versions_from_crates_io(crate_name: &str, client: &Client) -> 
         .header(reqwest::header::USER_AGENT, USER_AGENT)
         .timeout(Duration::from_secs(30))
         .send()
-        .map_err(|e| format!("Failed to send request to crate.io for {}: {}", crate_name, e));
+        .map_err(|e| {
+            format!(
+                "Failed to send request to crate.io for {}: {}",
+                crate_name, e
+            )
+        });
 
     let api_response: CratesIoCrate = match res {
         Ok(res) => {
             if !res.status().is_success() {
-                return Err(
-                    format!("crates.io API request for {} failed with status: {}",crate_name, res.status()))
+                return Err(format!(
+                    "crates.io API request for {} failed with status: {}",
+                    crate_name,
+                    res.status()
+                ));
             }
 
-            res.json().map_err(|e| format!("Failed to parse JSON response from crates.io for {}: {}", crate_name, e))?
-        },
-        Err(e) => {
-            return Err(
-                format!("Something went wrong - {}", e)
-            )
+            res.json().map_err(|e| {
+                format!(
+                    "Failed to parse JSON response from crates.io for {}: {}",
+                    crate_name, e
+                )
+            })?
         }
+        Err(e) => return Err(format!("Something went wrong - {}", e)),
     };
 
     Ok(api_response.crate_data.max_version)
@@ -90,9 +100,9 @@ pub fn get_latest_versions_from_crates_io(crate_name: &str, client: &Client) -> 
 
 // First, add this testable version of your function to your main code:
 pub fn get_latest_versions_from_crates_io_with_base_url(
-    crate_name: &str, 
-    client: &reqwest::blocking::Client, 
-    base_url: &str
+    crate_name: &str,
+    client: &reqwest::blocking::Client,
+    base_url: &str,
 ) -> Result<String, String> {
     let url = format!("{}/{}", base_url, crate_name);
 
@@ -101,22 +111,31 @@ pub fn get_latest_versions_from_crates_io_with_base_url(
         .header(reqwest::header::USER_AGENT, USER_AGENT)
         .timeout(Duration::from_secs(30))
         .send()
-        .map_err(|e| format!("Failed to send request to crate.io for {}: {}", crate_name, e));
+        .map_err(|e| {
+            format!(
+                "Failed to send request to crate.io for {}: {}",
+                crate_name, e
+            )
+        });
 
     let api_response: CratesIoCrate = match res {
         Ok(res) => {
             if !res.status().is_success() {
-                return Err(
-                    format!("crates.io API request for {} failed with status: {}",crate_name, res.status()))
+                return Err(format!(
+                    "crates.io API request for {} failed with status: {}",
+                    crate_name,
+                    res.status()
+                ));
             }
 
-            res.json().map_err(|e| format!("Failed to parse JSON response from crates.io for {}: {}", crate_name, e))?
-        },
-        Err(e) => {
-            return Err(
-                format!("Something went wrong - {}", e)
-            )
+            res.json().map_err(|e| {
+                format!(
+                    "Failed to parse JSON response from crates.io for {}: {}",
+                    crate_name, e
+                )
+            })?
         }
+        Err(e) => return Err(format!("Something went wrong - {}", e)),
     };
 
     Ok(api_response.crate_data.max_version)
@@ -184,15 +203,15 @@ mod tests {
         let server = MockServer::start();
 
         let mock = server.mock(|when, then| {
-            when.method(GET)
-                .path("/serde");
+            when.method(GET).path("/serde");
             then.status(200)
                 .header("content-type", "application/json")
                 .json_body(create_mock_crates_io_response());
         });
 
         let client = create_test_client();
-        let result = get_latest_versions_from_crates_io_with_base_url("serde", &client, &server.base_url());
+        let result =
+            get_latest_versions_from_crates_io_with_base_url("serde", &client, &server.base_url());
 
         mock.assert();
         assert!(result.is_ok());
@@ -204,15 +223,15 @@ mod tests {
         let server = MockServer::start();
 
         let mock = server.mock(|when, then| {
-            when.method(GET)
-                .path("/tokio");
+            when.method(GET).path("/tokio");
             then.status(200)
                 .header("content-type", "application/json")
                 .json_body(create_mock_crates_io_response_with_prerelease());
         });
 
         let client = create_test_client();
-        let result = get_latest_versions_from_crates_io_with_base_url("tokio", &client, &server.base_url());
+        let result =
+            get_latest_versions_from_crates_io_with_base_url("tokio", &client, &server.base_url());
 
         mock.assert();
         assert!(result.is_ok());
@@ -224,19 +243,24 @@ mod tests {
         let server = MockServer::start();
 
         let mock = server.mock(|when, then| {
-            when.method(GET)
-                .path("/nonexistent-crate");
-            then.status(404)
-                .body("Not Found");
+            when.method(GET).path("/nonexistent-crate");
+            then.status(404).body("Not Found");
         });
 
         let client = create_test_client();
-        let result = get_latest_versions_from_crates_io_with_base_url("nonexistent-crate", &client, &server.base_url());
+        let result = get_latest_versions_from_crates_io_with_base_url(
+            "nonexistent-crate",
+            &client,
+            &server.base_url(),
+        );
 
         mock.assert();
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("crates.io API request for nonexistent-crate failed with status: 404"));
+        assert!(
+            error_msg
+                .contains("crates.io API request for nonexistent-crate failed with status: 404")
+        );
     }
 
     #[test]
@@ -244,14 +268,16 @@ mod tests {
         let server = MockServer::start();
 
         let mock = server.mock(|when, then| {
-            when.method(GET)
-                .path("/some-crate");
-            then.status(500)
-                .body("Internal Server Error");
+            when.method(GET).path("/some-crate");
+            then.status(500).body("Internal Server Error");
         });
 
         let client = create_test_client();
-        let result = get_latest_versions_from_crates_io_with_base_url("some-crate", &client, &server.base_url());
+        let result = get_latest_versions_from_crates_io_with_base_url(
+            "some-crate",
+            &client,
+            &server.base_url(),
+        );
 
         mock.assert();
         assert!(result.is_err());
@@ -264,20 +290,26 @@ mod tests {
         let server = MockServer::start();
 
         let mock = server.mock(|when, then| {
-            when.method(GET)
-                .path("/invalid-json-crate");
+            when.method(GET).path("/invalid-json-crate");
             then.status(200)
                 .header("content-type", "application/json")
                 .body("{ invalid json }");
         });
 
         let client = create_test_client();
-        let result = get_latest_versions_from_crates_io_with_base_url("invalid-json-crate", &client, &server.base_url());
+        let result = get_latest_versions_from_crates_io_with_base_url(
+            "invalid-json-crate",
+            &client,
+            &server.base_url(),
+        );
 
         mock.assert();
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("Failed to parse JSON response from crates.io for invalid-json-crate"));
+        assert!(
+            error_msg
+                .contains("Failed to parse JSON response from crates.io for invalid-json-crate")
+        );
     }
 
     #[test]
@@ -293,20 +325,26 @@ mod tests {
         });
 
         let mock = server.mock(|when, then| {
-            when.method(GET)
-                .path("/missing-field-crate");
+            when.method(GET).path("/missing-field-crate");
             then.status(200)
                 .header("content-type", "application/json")
                 .json_body(invalid_response);
         });
 
         let client = create_test_client();
-        let result = get_latest_versions_from_crates_io_with_base_url("missing-field-crate", &client, &server.base_url());
+        let result = get_latest_versions_from_crates_io_with_base_url(
+            "missing-field-crate",
+            &client,
+            &server.base_url(),
+        );
 
         mock.assert();
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("Failed to parse JSON response from crates.io for missing-field-crate"));
+        assert!(
+            error_msg
+                .contains("Failed to parse JSON response from crates.io for missing-field-crate")
+        );
     }
 
     #[test]
@@ -324,7 +362,11 @@ mod tests {
         });
 
         let client = create_test_client();
-        let result = get_latest_versions_from_crates_io_with_base_url("user-agent-test", &client, &server.base_url());
+        let result = get_latest_versions_from_crates_io_with_base_url(
+            "user-agent-test",
+            &client,
+            &server.base_url(),
+        );
 
         mock.assert();
         assert!(result.is_ok());
@@ -335,15 +377,18 @@ mod tests {
         let server = MockServer::start();
 
         let mock = server.mock(|when, then| {
-            when.method(GET)
-                .path("/my-special_crate.name");
+            when.method(GET).path("/my-special_crate.name");
             then.status(200)
                 .header("content-type", "application/json")
                 .json_body(create_mock_crates_io_response());
         });
 
         let client = create_test_client();
-        let result = get_latest_versions_from_crates_io_with_base_url("my-special_crate.name", &client, &server.base_url());
+        let result = get_latest_versions_from_crates_io_with_base_url(
+            "my-special_crate.name",
+            &client,
+            &server.base_url(),
+        );
 
         mock.assert();
         assert!(result.is_ok());
@@ -356,7 +401,7 @@ mod tests {
         let json_data = create_mock_crates_io_response();
         let json_string = serde_json::to_string(&json_data).unwrap();
         let parsed: Result<CratesIoCrate, _> = serde_json::from_str(&json_string);
-        
+
         assert!(parsed.is_ok());
         let crate_info = parsed.unwrap();
         assert_eq!(crate_info.crate_data.max_version, "1.2.3");
@@ -370,7 +415,7 @@ mod tests {
     fn test_crate_version_deserialization() {
         let json_data = r#"{"num": "1.0.0", "yanked": true}"#;
         let parsed: Result<CrateVersion, _> = serde_json::from_str(json_data);
-        
+
         assert!(parsed.is_ok());
         let version = parsed.unwrap();
         assert_eq!(version.num, "1.0.0");
@@ -381,7 +426,7 @@ mod tests {
     fn test_crate_data_deserialization() {
         let json_data = r#"{"max_version": "2.1.0"}"#;
         let parsed: Result<CrateData, _> = serde_json::from_str(json_data);
-        
+
         assert!(parsed.is_ok());
         let crate_data = parsed.unwrap();
         assert_eq!(crate_data.max_version, "2.1.0");
@@ -409,7 +454,7 @@ mod tests {
         let base = "http://example.com";
         let crate_name = "serde";
         let expected_url = format!("{}/{}", base, crate_name);
-        
+
         assert_eq!(expected_url, "http://example.com/serde");
     }
 }
@@ -457,7 +502,7 @@ mod simple_unit_tests {
                 }
             ]
         }"#;
-        
+
         let result: Result<CratesIoCrate, _> = serde_json::from_str(invalid_json);
         assert!(result.is_err());
 
@@ -466,7 +511,7 @@ mod simple_unit_tests {
             "crate": {},
             "versions": []
         }"#;
-        
+
         let result2: Result<CratesIoCrate, _> = serde_json::from_str(invalid_json2);
         assert!(result2.is_err());
 
@@ -541,11 +586,11 @@ mod simple_unit_tests {
         let parsed: CratesIoCrate = serde_json::from_str(real_response).unwrap();
         assert_eq!(parsed.crate_data.max_version, "1.0.210");
         assert_eq!(parsed.versions.len(), 3);
-        
+
         // Verify the first version matches max_version
         assert_eq!(parsed.versions[0].num, parsed.crate_data.max_version);
         assert!(!parsed.versions[0].yanked);
-        
+
         // Verify yanked version
         assert!(parsed.versions[2].yanked);
     }

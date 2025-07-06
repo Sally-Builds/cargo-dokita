@@ -40,7 +40,8 @@ impl ProjectBuilder {
     }
 
     pub fn dependency(mut self, name: &str, version: &str) -> Self {
-        self.dependencies.push((name.to_string(), version.to_string()));
+        self.dependencies
+            .push((name.to_string(), version.to_string()));
         self
     }
 
@@ -94,10 +95,10 @@ edition = "{}"
         }
 
         fs::write(project_path.join("Cargo.toml"), cargo_toml)?;
-        
+
         // Create src directory
         fs::create_dir(project_path.join("src"))?;
-        
+
         // Create main.rs or lib.rs based on project type
         if self.name.contains("lib") || self.name.contains("library") {
             fs::write(project_path.join("src/lib.rs"), "")?;
@@ -125,7 +126,7 @@ edition = "{}"
         for member in &self.workspace_members {
             let member_path = project_path.join(member);
             fs::create_dir(&member_path)?;
-            
+
             ProjectBuilder::new(member)
                 .edition(&self.edition)
                 .build_in(&member_path)?;
@@ -170,7 +171,11 @@ pub fn create_rust_project_with_edition(
 }
 
 /// Helper to create source files with specific content
-pub fn create_source_file(project_path: &Path, file_path: &str, content: &str) -> std::io::Result<()> {
+pub fn create_source_file(
+    project_path: &Path,
+    file_path: &str,
+    content: &str,
+) -> std::io::Result<()> {
     let full_path = project_path.join(file_path);
     if let Some(parent) = full_path.parent() {
         fs::create_dir_all(parent)?;
@@ -206,10 +211,7 @@ require_license = false
 }
 
 /// Helper to create a workspace project
-pub fn create_workspace_project(
-    project_path: &Path,
-    members: &[&str],
-) -> std::io::Result<()> {
+pub fn create_workspace_project(project_path: &Path, members: &[&str]) -> std::io::Result<()> {
     ProjectBuilder::new("workspace")
         .workspace(members)
         .build_in(project_path)
@@ -258,12 +260,18 @@ pub fn analyze_project_text(project_path: &Path) -> Result<(), cargo_dokita::MyE
     match cargo_dokita::analyze_project_for_test(project_path.to_str().unwrap(), "text") {
         Ok(findings) => {
             // For tests, we consider it successful if there are no errors/warnings
-            if findings.iter().any(|f| matches!(f.severity, cargo_dokita::diagnostics::Severity::Error | cargo_dokita::diagnostics::Severity::Warning)) {
+            if findings.iter().any(|f| {
+                matches!(
+                    f.severity,
+                    cargo_dokita::diagnostics::Severity::Error
+                        | cargo_dokita::diagnostics::Severity::Warning
+                )
+            }) {
                 Err(cargo_dokita::MyError::HasIssues(findings))
             } else {
                 Ok(())
             }
-        },
+        }
         Err(e) => Err(e),
     }
 }
@@ -272,18 +280,26 @@ pub fn analyze_project_text(project_path: &Path) -> Result<(), cargo_dokita::MyE
 pub fn analyze_project_json(project_path: &Path) -> Result<(), cargo_dokita::MyError> {
     match cargo_dokita::analyze_project_for_test(project_path.to_str().unwrap(), "json") {
         Ok(findings) => {
-            if findings.iter().any(|f| matches!(f.severity, cargo_dokita::diagnostics::Severity::Error | cargo_dokita::diagnostics::Severity::Warning)) {
+            if findings.iter().any(|f| {
+                matches!(
+                    f.severity,
+                    cargo_dokita::diagnostics::Severity::Error
+                        | cargo_dokita::diagnostics::Severity::Warning
+                )
+            }) {
                 Err(cargo_dokita::MyError::HasIssues(findings))
             } else {
                 Ok(())
             }
-        },
+        }
         Err(e) => Err(e),
     }
 }
 
 /// Helper to analyze project and expect it to find issues (for negative testing)
-pub fn analyze_project_expect_issues(project_path: &Path) -> Result<Vec<cargo_dokita::diagnostics::Finding>, cargo_dokita::MyError> {
+pub fn analyze_project_expect_issues(
+    project_path: &Path,
+) -> Result<Vec<cargo_dokita::diagnostics::Finding>, cargo_dokita::MyError> {
     match cargo_dokita::analyze_project_for_test(project_path.to_str().unwrap(), "text") {
         Ok(findings) => Ok(findings),
         Err(e) => Err(e),
@@ -297,21 +313,27 @@ pub fn create_perfect_project(project_path: &Path, name: &str) -> std::io::Resul
         .description("A well-documented test project")
         .license("MIT")
         .build_in(project_path)?;
-    
+
     // Create README
-    let readme_content = format!(r#"# {}
+    let readme_content = format!(
+        r#"# {}
 
 A well-documented test project.
 
 ## License
 
 MIT
-"#, name);
+"#,
+        name
+    );
     std::fs::write(project_path.join("README.md"), readme_content)?;
-    
+
     // Create LICENSE file
-    std::fs::write(project_path.join("LICENSE"), "MIT License\n\nCopyright (c) 2024\n\nPermission is hereby granted...")?;
-    
+    std::fs::write(
+        project_path.join("LICENSE"),
+        "MIT License\n\nCopyright (c) 2024\n\nPermission is hereby granted...",
+    )?;
+
     // Create a main.rs with proper linting
     let main_content = r#"#![deny(warnings)]
 
@@ -320,7 +342,7 @@ fn main() {
 }
 "#;
     std::fs::write(project_path.join("src/main.rs"), main_content)?;
-    
+
     Ok(())
 }
 
@@ -337,7 +359,7 @@ mod tests {
             .dependency("serde", "1.0")
             .description("A test project")
             .build_in(env.path());
-        
+
         assert!(result.is_ok());
         assert!(env.path().join("Cargo.toml").exists());
         assert!(env.path().join("src/main.rs").exists());
@@ -347,7 +369,7 @@ mod tests {
     fn test_workspace_builder() {
         let env = TestEnvironment::new();
         let result = create_workspace_project(env.path(), &["member1", "member2"]);
-        
+
         assert!(result.is_ok());
         assert!(env.path().join("Cargo.toml").exists());
         assert!(env.path().join("member1/Cargo.toml").exists());

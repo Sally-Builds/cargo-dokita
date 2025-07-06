@@ -29,7 +29,7 @@
 //! let project_root = Path::new("./my_project");
 //! let rust_files = collect_rust_files(project_root);
 //! let findings = check_code_patterns(&rust_files, project_root);
-//! 
+//!
 //! for finding in findings {
 //!     println!("{}: {}", finding.code, finding.message);
 //! }
@@ -38,25 +38,25 @@
 //! The module is designed to integrate seamlessly with cargo-dokita's diagnostic system
 //! and configuration management, providing actionable feedback for Rust developers.
 
+use crate::config::Config;
+use crate::diagnostics::{Finding, Severity};
+use crate::manifest::CargoManifest;
+use once_cell::sync::Lazy;
+use rayon::prelude::*;
+use regex::Regex;
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::{DirEntry, WalkDir};
-use crate::config::Config;
-use crate::diagnostics::{Finding, Severity};
-use regex::Regex;
-use once_cell::sync::Lazy;
-use crate::manifest::CargoManifest; 
-use rayon::prelude::*;
 
 static UNWRAP_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\.unwrap\(\)").unwrap());
 static EXPECT_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r#"\.expect\s*\("#).unwrap());
 static PRINTLN_DBG_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"(println!|dbg!)\s*\(").unwrap());
-static TODO_COMMENT_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"//\s*(TODO|FIXME|XXX)").unwrap());
+static TODO_COMMENT_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"//\s*(TODO|FIXME|XXX)").unwrap());
 static DENY_LINT_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"#!\[deny\(([^)]+)\)\]").unwrap());
 
 fn is_rust_file(entry: &DirEntry) -> bool {
-    entry.file_type().is_file()
-        && entry.path().extension().is_some_and(|ext| ext == "rs")
+    entry.file_type().is_file() && entry.path().extension().is_some_and(|ext| ext == "rs")
 }
 
 pub fn collect_rust_files(project_root: &Path) -> Vec<PathBuf> {
@@ -80,7 +80,7 @@ pub fn collect_rust_files(project_root: &Path) -> Vec<PathBuf> {
 
 fn is_library_file(file_path: &Path, project_root: &Path) -> bool {
     let src_lib_path = project_root.join("src").join("lib.rs");
-    
+
     file_path.starts_with(project_root.join("src"))
         && file_path != src_lib_path // Allow in lib.rs if it's a binary-only crate's "main" logic
         && !file_path.ends_with("main.rs") // Check if it's literally main.rs
@@ -88,10 +88,7 @@ fn is_library_file(file_path: &Path, project_root: &Path) -> bool {
         && file_path != project_root.join("build.rs") // Not build script
 }
 
-pub fn check_code_patterns(
-    rust_files: &[PathBuf],
-    project_root: &Path
-) -> Vec<Finding> {
+pub fn check_code_patterns(rust_files: &[PathBuf], project_root: &Path) -> Vec<Finding> {
     let findings_from_all_files: Vec<Finding> = rust_files
         .par_iter()
         .flat_map(|file_path_ref| {
@@ -172,15 +169,14 @@ pub fn check_code_patterns(
 
             per_file_findings
         }).collect();
-    
+
     findings_from_all_files
 }
-
 
 pub fn check_project_structure(
     project_root: &Path,
     manifest_data: Option<&CargoManifest>, // Pass the parsed Cargo.toml
-    // _metadata: Option<&Metadata>, // Pass metadata, not used yet but good for future
+                                           // _metadata: Option<&Metadata>, // Pass metadata, not used yet but good for future
 ) -> Vec<Finding> {
     let mut findings = Vec::new();
 
@@ -197,13 +193,15 @@ pub fn check_project_structure(
             // A common pattern is that the package name is used for the lib if not specified
             // This is still a heuristic. cargo_metadata is better.
             let default_lib_name = p.name.replace('-', "_");
-            project_root.join("src").join(format!("{}.rs", default_lib_name)).exists() || has_lib_rs
+            project_root
+                .join("src")
+                .join(format!("{}.rs", default_lib_name))
+                .exists()
+                || has_lib_rs
         })
     });
 
-
     if let Some(_pkg) = manifest_data.and_then(|m| m.package.as_ref()) {
-
         // If it has a `[package]` section and is not a virtual workspace manifest
         if !is_likely_library && !has_main_rs && !has_bin_dir {
             findings.push(Finding::new(
@@ -222,13 +220,14 @@ pub fn check_project_structure(
         let readme_path_md = project_root.join("README.md");
         let readme_path_rst = project_root.join("README.rst"); // Less common in Rust but possible
         if !readme_path_md.is_file() && !readme_path_rst.is_file() {
-             // Check if Cargo.toml specifies `readme = false` or a custom readme file
+            // Check if Cargo.toml specifies `readme = false` or a custom readme file
             let readme_specified_and_false_or_exists = manifest_data
                 .and_then(|m| m.package.as_ref())
                 .and_then(|p| p.readme.as_ref())
                 .is_some_and(|r_val| {
                     // if r_val is a bool and false, then it's fine
-                    if let Some(b) = r_val.as_bool() { // Assuming readme can be bool or string
+                    if let Some(b) = r_val.as_bool() {
+                        // Assuming readme can be bool or string
                         !b
                     } else if let Some(s) = r_val.as_str() {
                         project_root.join(s).is_file()
@@ -249,8 +248,19 @@ pub fn check_project_structure(
 
         // Check for LICENSE file (could also be in manifest checks if `license-file` points to it)
         // Common names: LICENSE, LICENSE.txt, LICENSE-MIT, LICENSE-APACHE, COPYING
-        let license_files = ["LICENSE", "LICENSE.txt", "LICENSE-MIT", "LICENSE-APACHE", "COPYING", "UNLICENSE"];
-        let has_license_file = license_files.iter().any(|name| project_root.join(name).is_file() || project_root.join(name.to_uppercase()).is_file() || project_root.join(name.to_lowercase()).is_file());
+        let license_files = [
+            "LICENSE",
+            "LICENSE.txt",
+            "LICENSE-MIT",
+            "LICENSE-APACHE",
+            "COPYING",
+            "UNLICENSE",
+        ];
+        let has_license_file = license_files.iter().any(|name| {
+            project_root.join(name).is_file()
+                || project_root.join(name.to_uppercase()).is_file()
+                || project_root.join(name.to_lowercase()).is_file()
+        });
 
         if !has_license_file {
             // Check if Cargo.toml specifies `license-file`
@@ -263,8 +273,12 @@ pub fn check_project_structure(
                     p.license.is_some() && p.license.as_deref() != Some("") // If license is specified, a file is good practice
                 });
 
-            if !license_file_specified || manifest_data.and_then(|m| m.package.as_ref()).is_none_or(|p| p.license.is_none()) {
-                 findings.push(Finding::new(
+            if !license_file_specified
+                || manifest_data
+                    .and_then(|m| m.package.as_ref())
+                    .is_none_or(|p| p.license.is_none())
+            {
+                findings.push(Finding::new(
                     "STRUCT003",
                     "Missing LICENSE file in project root. Consider adding one (e.g., LICENSE-MIT or LICENSE-APACHE).".to_string(),
                     Severity::Warning, // More important than README
@@ -290,10 +304,12 @@ pub fn check_missing_denied_lints(
     let files_to_check = [&lib_rs_path, &main_rs_path];
 
     let recommended_denials = vec!["warnings"]; // Could come from config
-                                            // or clippy::all, clippy::pedantic
+    // or clippy::all, clippy::pedantic
 
     for file_path in files_to_check.iter().filter(|p| p.exists()) {
-        if !config.is_check_enabled("LINT001") { continue; } // Example check code
+        if !config.is_check_enabled("LINT001") {
+            continue;
+        } // Example check code
 
         if let Ok(content) = fs::read_to_string(file_path) {
             let mut found_denials = std::collections::HashSet::new();
@@ -319,16 +335,15 @@ pub fn check_missing_denied_lints(
     findings
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use tempfile::TempDir;
-    use crate::config::{Config, ChecksConfig};
-    use crate::diagnostics::{Severity};
+    use crate::config::{ChecksConfig, Config};
+    use crate::diagnostics::Severity;
     use crate::manifest::{CargoManifest, Package};
     use std::collections::HashMap;
+    use std::fs;
+    use tempfile::TempDir;
 
     // Helper function to create a temporary directory with test files
     fn create_test_dir() -> TempDir {
@@ -339,7 +354,7 @@ mod tests {
     fn create_test_config() -> Config {
         let mut enabled_checks = HashMap::new();
         enabled_checks.insert("LINT001".to_string(), true);
-        
+
         Config {
             general: Default::default(),
             checks: ChecksConfig {
@@ -371,13 +386,21 @@ mod tests {
         let temp_dir = create_test_dir();
         let rust_file = temp_dir.path().join("test.rs");
         let non_rust_file = temp_dir.path().join("test.txt");
-        
+
         fs::write(&rust_file, "fn main() {}").unwrap();
         fs::write(&non_rust_file, "hello").unwrap();
-        
-        let rust_entry = WalkDir::new(&rust_file).into_iter().next().unwrap().unwrap();
-        let non_rust_entry = WalkDir::new(&non_rust_file).into_iter().next().unwrap().unwrap();
-        
+
+        let rust_entry = WalkDir::new(&rust_file)
+            .into_iter()
+            .next()
+            .unwrap()
+            .unwrap();
+        let non_rust_entry = WalkDir::new(&non_rust_file)
+            .into_iter()
+            .next()
+            .unwrap()
+            .unwrap();
+
         assert!(is_rust_file(&rust_entry));
         assert!(!is_rust_file(&non_rust_entry));
     }
@@ -386,31 +409,35 @@ mod tests {
     fn test_collect_rust_files() {
         let temp_dir = create_test_dir();
         let project_root = temp_dir.path();
-        
+
         // Create directory structure
         let src_dir = project_root.join("src");
         let tests_dir = project_root.join("tests");
         let examples_dir = project_root.join("examples");
-        
+
         fs::create_dir_all(&src_dir).unwrap();
         fs::create_dir_all(&tests_dir).unwrap();
         fs::create_dir_all(&examples_dir).unwrap();
-        
+
         // Create Rust files
         fs::write(src_dir.join("lib.rs"), "// lib content").unwrap();
         fs::write(src_dir.join("main.rs"), "fn main() {}").unwrap();
         fs::write(tests_dir.join("integration_test.rs"), "// test content").unwrap();
         fs::write(examples_dir.join("example.rs"), "fn main() {}").unwrap();
-        
+
         // Create non-Rust file (should be ignored)
         fs::write(src_dir.join("config.toml"), "[package]").unwrap();
-        
+
         let rust_files = collect_rust_files(project_root);
-        
+
         assert_eq!(rust_files.len(), 4);
         assert!(rust_files.iter().any(|p| p.ends_with("lib.rs")));
         assert!(rust_files.iter().any(|p| p.ends_with("main.rs")));
-        assert!(rust_files.iter().any(|p| p.ends_with("integration_test.rs")));
+        assert!(
+            rust_files
+                .iter()
+                .any(|p| p.ends_with("integration_test.rs"))
+        );
         assert!(rust_files.iter().any(|p| p.ends_with("example.rs")));
     }
 
@@ -420,16 +447,16 @@ mod tests {
         let project_root = temp_dir.path();
         let src_dir = project_root.join("src");
         let bin_dir = src_dir.join("bin");
-        
+
         fs::create_dir_all(&src_dir).unwrap();
         fs::create_dir_all(&bin_dir).unwrap();
-        
+
         let lib_rs = src_dir.join("lib.rs");
         let main_rs = src_dir.join("main.rs");
         let module_rs = src_dir.join("module.rs");
         let bin_file = bin_dir.join("binary.rs");
         let build_rs = project_root.join("build.rs");
-        
+
         // Test various file types
         assert!(!is_library_file(&lib_rs, project_root)); // lib.rs is allowed
         assert!(!is_library_file(&main_rs, project_root)); // main.rs is not library
@@ -443,9 +470,9 @@ mod tests {
         let temp_dir = create_test_dir();
         let project_root = temp_dir.path();
         let src_dir = project_root.join("src");
-        
+
         fs::create_dir_all(&src_dir).unwrap();
-        
+
         let test_file = src_dir.join("module.rs");
         let test_content = r#"
 fn test_function() {
@@ -456,16 +483,16 @@ fn test_function() {
 }
 "#;
         fs::write(&test_file, test_content).unwrap();
-        
+
         let rust_files = vec![test_file];
         let findings = check_code_patterns(&rust_files, project_root);
-        
+
         // Should find unwrap, expect, println, and TODO
         assert!(findings.iter().any(|f| f.code == "CODE001")); // unwrap
         assert!(findings.iter().any(|f| f.code == "CODE002")); // expect
         assert!(findings.iter().any(|f| f.code == "CODE003")); // println
         assert!(findings.iter().any(|f| f.code == "CODE004")); // TODO
-        
+
         // Check that line numbers are correct
         let unwrap_finding = findings.iter().find(|f| f.code == "CODE001").unwrap();
         assert_eq!(unwrap_finding.line_number, Some(3));
@@ -475,7 +502,7 @@ fn test_function() {
     fn test_check_code_patterns_build_script_exclusion() {
         let temp_dir = create_test_dir();
         let project_root = temp_dir.path();
-        
+
         let build_rs = project_root.join("build.rs");
         let build_content = r#"
 fn main() {
@@ -484,15 +511,15 @@ fn main() {
 }
 "#;
         fs::write(&build_rs, build_content).unwrap();
-        
+
         let rust_files = vec![build_rs];
         let findings = check_code_patterns(&rust_files, project_root);
-        
+
         // Should not find CODE001, CODE002, or CODE003 in build.rs
         assert!(!findings.iter().any(|f| f.code == "CODE001"));
         assert!(!findings.iter().any(|f| f.code == "CODE002"));
         assert!(!findings.iter().any(|f| f.code == "CODE003"));
-        
+
         // But should still find TODO comments
         // (if we add one to the test content)
     }
@@ -501,13 +528,13 @@ fn main() {
     fn test_check_code_patterns_file_read_error() {
         let temp_dir = create_test_dir();
         let project_root = temp_dir.path();
-        
+
         // Create a path to a non-existent file
         let non_existent_file = project_root.join("nonexistent.rs");
         let rust_files = vec![non_existent_file];
-        
+
         let findings = check_code_patterns(&rust_files, project_root);
-        
+
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].code, "IO001");
         assert_eq!(findings[0].severity, Severity::Warning);
@@ -517,12 +544,12 @@ fn main() {
     fn test_check_project_structure_missing_source_files() {
         let temp_dir = create_test_dir();
         let project_root = temp_dir.path();
-        
+
         // Create Cargo.toml but no source files
         let manifest = create_test_manifest("test-project");
-        
+
         let findings = check_project_structure(project_root, Some(&manifest));
-        
+
         assert!(findings.iter().any(|f| f.code == "STRUCT001"));
     }
 
@@ -531,14 +558,14 @@ fn main() {
         let temp_dir = create_test_dir();
         let project_root = temp_dir.path();
         let src_dir = project_root.join("src");
-        
+
         fs::create_dir_all(&src_dir).unwrap();
         fs::write(src_dir.join("main.rs"), "fn main() {}").unwrap();
-        
+
         let manifest = create_test_manifest("test-project");
-        
+
         let findings = check_project_structure(project_root, Some(&manifest));
-        
+
         assert!(findings.iter().any(|f| f.code == "STRUCT002"));
     }
 
@@ -547,15 +574,15 @@ fn main() {
         let temp_dir = create_test_dir();
         let project_root = temp_dir.path();
         let src_dir = project_root.join("src");
-        
+
         fs::create_dir_all(&src_dir).unwrap();
         fs::write(src_dir.join("main.rs"), "fn main() {}").unwrap();
-        
+
         let mut manifest = create_test_manifest("test-project");
         manifest.package.as_mut().unwrap().license = None; // No license specified
-        
+
         let findings = check_project_structure(project_root, Some(&manifest));
-        
+
         assert!(findings.iter().any(|f| f.code == "STRUCT003"));
     }
 
@@ -564,16 +591,16 @@ fn main() {
         let temp_dir = create_test_dir();
         let project_root = temp_dir.path();
         let src_dir = project_root.join("src");
-        
+
         fs::create_dir_all(&src_dir).unwrap();
         fs::write(src_dir.join("main.rs"), "fn main() {}").unwrap();
         fs::write(project_root.join("README.md"), "# Test Project").unwrap();
         fs::write(project_root.join("LICENSE"), "MIT License").unwrap();
-        
+
         let manifest = create_test_manifest("test-project");
-        
+
         let findings = check_project_structure(project_root, Some(&manifest));
-        
+
         // Should not flag missing README or LICENSE
         assert!(!findings.iter().any(|f| f.code == "STRUCT002"));
         assert!(!findings.iter().any(|f| f.code == "STRUCT003"));
@@ -584,9 +611,9 @@ fn main() {
         let temp_dir = create_test_dir();
         let project_root = temp_dir.path();
         let src_dir = project_root.join("src");
-        
+
         fs::create_dir_all(&src_dir).unwrap();
-        
+
         let lib_rs = src_dir.join("lib.rs");
         let lib_content = r#"
 // No deny attributes here
@@ -595,10 +622,10 @@ pub fn hello() {
 }
 "#;
         fs::write(&lib_rs, lib_content).unwrap();
-        
+
         let config = create_test_config();
         let findings = check_missing_denied_lints(project_root, &config);
-        
+
         assert!(findings.iter().any(|f| f.code == "LINT001"));
     }
 
@@ -607,9 +634,9 @@ pub fn hello() {
         let temp_dir = create_test_dir();
         let project_root = temp_dir.path();
         let src_dir = project_root.join("src");
-        
+
         fs::create_dir_all(&src_dir).unwrap();
-        
+
         let lib_rs = src_dir.join("lib.rs");
         let lib_content = r#"
 #![deny(warnings)]
@@ -619,10 +646,10 @@ pub fn hello() {
 }
 "#;
         fs::write(&lib_rs, lib_content).unwrap();
-        
+
         let config = create_test_config();
         let findings = check_missing_denied_lints(project_root, &config);
-        
+
         // Should not flag missing warnings denial
         assert!(!findings.iter().any(|f| f.code == "LINT001"));
     }
@@ -632,18 +659,18 @@ pub fn hello() {
         let temp_dir = create_test_dir();
         let project_root = temp_dir.path();
         let src_dir = project_root.join("src");
-        
+
         fs::create_dir_all(&src_dir).unwrap();
-        
+
         let lib_rs = src_dir.join("lib.rs");
         fs::write(&lib_rs, "pub fn hello() {}").unwrap();
-        
+
         // Create config with LINT001 disabled
         let mut config = Config::default();
         config.checks.enabled.insert("LINT001".to_string(), false);
-        
+
         let findings = check_missing_denied_lints(project_root, &config);
-        
+
         // Should not flag anything when check is disabled
         assert!(!findings.iter().any(|f| f.code == "LINT001"));
     }
@@ -654,20 +681,20 @@ pub fn hello() {
         assert!(UNWRAP_REGEX.is_match("result.unwrap()"));
         assert!(UNWRAP_REGEX.is_match("some_func().unwrap()"));
         assert!(!UNWRAP_REGEX.is_match("unwrap_or_default()"));
-        
+
         assert!(EXPECT_REGEX.is_match(r#"result.expect("failed")"#));
         assert!(EXPECT_REGEX.is_match("result.expect("));
         assert!(!EXPECT_REGEX.is_match("expected_value"));
-        
+
         assert!(PRINTLN_DBG_REGEX.is_match("println!(\"hello\")"));
         assert!(PRINTLN_DBG_REGEX.is_match("dbg!(value)"));
         assert!(!PRINTLN_DBG_REGEX.is_match("print_value()"));
-        
+
         assert!(TODO_COMMENT_REGEX.is_match("// TODO: fix this"));
         assert!(TODO_COMMENT_REGEX.is_match("// FIXME: broken"));
         assert!(TODO_COMMENT_REGEX.is_match("//XXX urgent"));
         assert!(!TODO_COMMENT_REGEX.is_match("// NOTE: this is fine"));
-        
+
         assert!(DENY_LINT_REGEX.is_match("#![deny(warnings)]"));
         assert!(DENY_LINT_REGEX.is_match("#![deny(clippy::all, warnings)]"));
     }
@@ -677,24 +704,27 @@ pub fn hello() {
         let temp_dir = create_test_dir();
         let project_root = temp_dir.path();
         let src_dir = project_root.join("src");
-        
+
         fs::create_dir_all(&src_dir).unwrap();
-        
+
         // Create multiple files to test parallel processing
         for i in 0..10 {
             let file_path = src_dir.join(format!("module_{}.rs", i));
-            let content = format!(r#"
+            let content = format!(
+                r#"
 // TODO: implement module {}
 pub fn function_{}() {{
     let result = some_operation().unwrap();
 }}
-"#, i, i);
+"#,
+                i, i
+            );
             fs::write(&file_path, content).unwrap();
         }
-        
+
         let rust_files = collect_rust_files(project_root);
         let findings = check_code_patterns(&rust_files, project_root);
-        
+
         // Should find issues in all files
         assert_eq!(findings.iter().filter(|f| f.code == "CODE001").count(), 10); // unwrap
         assert_eq!(findings.iter().filter(|f| f.code == "CODE004").count(), 10); // TODO

@@ -28,12 +28,11 @@
 //! }
 //! ```
 
-//! 
+//!
 //! # Config
-//! 
+//!
 //! This module defines the configuration structure for Cargo Dokita.
 //! It uses TOML for configuration files and provides a way to load and validate the configuration.
-
 
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -89,9 +88,6 @@ impl Config {
         self.checks.enabled.get(check_code).copied().unwrap_or(true)
     }
 }
-
-
-
 
 #[cfg(test)]
 mod tests {
@@ -172,7 +168,7 @@ unknown_check_field = "value"
 enabled = { "MD001" = true, "MD002" = false }
 "#;
         let config: Config = toml::from_str(toml_content).unwrap();
-        
+
         assert!(config.is_check_enabled("MD001"));
         assert!(!config.is_check_enabled("MD002"));
         // Should default to true for unspecified checks
@@ -183,7 +179,7 @@ enabled = { "MD001" = true, "MD002" = false }
     fn test_load_from_project_root_no_config_file() {
         let temp_dir = TempDir::new().unwrap();
         let result = Config::load_from_project_root(temp_dir.path());
-        
+
         assert!(result.is_ok());
         let config = result.unwrap();
         assert!(config.checks.enabled.is_empty());
@@ -193,16 +189,16 @@ enabled = { "MD001" = true, "MD002" = false }
     fn test_load_from_project_root_valid_config() {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join(CONFIG_FILE_NAME);
-        
+
         let toml_content = r#"
 [checks]
 enabled = { "MD001" = true, "MD002" = false }
 "#;
         fs::write(&config_path, toml_content).unwrap();
-        
+
         let result = Config::load_from_project_root(temp_dir.path());
         assert!(result.is_ok());
-        
+
         let config = result.unwrap();
         assert_eq!(config.checks.enabled.len(), 2);
         assert!(config.is_check_enabled("MD001"));
@@ -213,14 +209,14 @@ enabled = { "MD001" = true, "MD002" = false }
     fn test_load_from_project_root_invalid_toml() {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join(CONFIG_FILE_NAME);
-        
+
         // Invalid TOML content
         let invalid_toml = r#"
 [checks
 enabled = { "MD001" = true }
 "#;
         fs::write(&config_path, invalid_toml).unwrap();
-        
+
         let result = Config::load_from_project_root(temp_dir.path());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Failed to parse config file"));
@@ -230,14 +226,14 @@ enabled = { "MD001" = true }
     fn test_load_from_project_root_invalid_config_structure() {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join(CONFIG_FILE_NAME);
-        
+
         // Valid TOML but invalid config structure
         let invalid_config = r#"
 [unknown_section]
 field = "value"
 "#;
         fs::write(&config_path, invalid_config).unwrap();
-        
+
         let result = Config::load_from_project_root(temp_dir.path());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Failed to parse config file"));
@@ -247,10 +243,10 @@ field = "value"
     fn test_load_from_project_root_file_read_error() {
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join(CONFIG_FILE_NAME);
-        
+
         // Create a directory instead of a file to simulate read error
         fs::create_dir(&config_path).unwrap();
-        
+
         let result = Config::load_from_project_root(temp_dir.path());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Failed to read config file"));
@@ -269,10 +265,13 @@ enabled = { "MD001" = true, "MD002" = false }
 "#;
         let config: Config = toml::from_str(toml_content).unwrap();
         let cloned_config = config.clone();
-        
-        assert_eq!(config.checks.enabled.len(), cloned_config.checks.enabled.len());
+
         assert_eq!(
-            config.is_check_enabled("MD001"), 
+            config.checks.enabled.len(),
+            cloned_config.checks.enabled.len()
+        );
+        assert_eq!(
+            config.is_check_enabled("MD001"),
             cloned_config.is_check_enabled("MD001")
         );
     }

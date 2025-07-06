@@ -13,16 +13,19 @@
 //! - Includes comprehensive unit tests for manifest parsing and metadata validation.
 //!
 //! This module is intended for use in tools that lint, audit, or analyze Rust project manifests.
-//! 
+//!
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::Path;
 use std::fs;
+use std::path::Path;
 
-use crate::{config::Config, diagnostics::{Finding, Severity}};
+use crate::{
+    config::Config,
+    diagnostics::{Finding, Severity},
+};
 
-#[derive(Deserialize,Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Package {
     pub name: String,
     pub version: String,
@@ -33,7 +36,6 @@ pub struct Package {
     pub readme: Option<toml::Value>,
     pub repository: Option<String>,
 }
-
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(untagged)]
@@ -62,45 +64,59 @@ pub struct CargoManifest {
 
 impl CargoManifest {
     pub fn parse(path_to_cargo_toml: &Path) -> Result<Self, String> {
-        let content = fs::read_to_string(path_to_cargo_toml)
-            .map_err(|e| format!("Failed to read Cargo.toml at {:?}: {}", path_to_cargo_toml, e))?;
+        let content = fs::read_to_string(path_to_cargo_toml).map_err(|e| {
+            format!(
+                "Failed to read Cargo.toml at {:?}: {}",
+                path_to_cargo_toml, e
+            )
+        })?;
 
-        toml::from_str(&content)
-            .map_err(|e| format!("Failed to parse Cargo.toml at {:?}: {}", path_to_cargo_toml, e))
+        toml::from_str(&content).map_err(|e| {
+            format!(
+                "Failed to parse Cargo.toml at {:?}: {}",
+                path_to_cargo_toml, e
+            )
+        })
     }
 }
-
 
 pub fn check_missing_metadata(manifest: &CargoManifest, config: &Config) -> Vec<Finding> {
     let mut findings = Vec::new();
     if let Some(package) = &manifest.package {
-        if config.is_check_enabled("MD001") && (package.description.is_none() || package.description.as_deref() == Some("")) {
-                findings.push(Finding::new(
-                    "MD001",
-                    "Missing 'description' in [package] section of Cargo.toml.".to_string(),
-                    Severity::Warning,
-                    Some("Cargo.toml".to_string()),
-                ));
-        }
-        
-        if config.is_check_enabled("MD002") && (package.license.is_none() || package.license.as_deref() == Some("")) {
-                findings.push(Finding::new(
-                "MD002",
-                "Missing 'license' (or 'license-file') in [package] section of Cargo.toml.".to_string(),
+        if config.is_check_enabled("MD001")
+            && (package.description.is_none() || package.description.as_deref() == Some(""))
+        {
+            findings.push(Finding::new(
+                "MD001",
+                "Missing 'description' in [package] section of Cargo.toml.".to_string(),
                 Severity::Warning,
                 Some("Cargo.toml".to_string()),
-                ));
+            ));
         }
 
-        if config.is_check_enabled("MD003") && (package.repository.is_none() || package.repository.as_deref() == Some("")) {
-                findings.push(Finding::new(
-                    "MD003",
-                    "Missing 'repository' in [package] section of Cargo.toml.".to_string(),
-                    Severity::Note, // Less critical than license/description for local projects
-                    Some("Cargo.toml".to_string()),
-                ));
+        if config.is_check_enabled("MD002")
+            && (package.license.is_none() || package.license.as_deref() == Some(""))
+        {
+            findings.push(Finding::new(
+                "MD002",
+                "Missing 'license' (or 'license-file') in [package] section of Cargo.toml."
+                    .to_string(),
+                Severity::Warning,
+                Some("Cargo.toml".to_string()),
+            ));
         }
-        
+
+        if config.is_check_enabled("MD003")
+            && (package.repository.is_none() || package.repository.as_deref() == Some(""))
+        {
+            findings.push(Finding::new(
+                "MD003",
+                "Missing 'repository' in [package] section of Cargo.toml.".to_string(),
+                Severity::Note, // Less critical than license/description for local projects
+                Some("Cargo.toml".to_string()),
+            ));
+        }
+
         if config.is_check_enabled("MD004") {
             match &package.readme {
                 None => {
@@ -110,11 +126,10 @@ pub fn check_missing_metadata(manifest: &CargoManifest, config: &Config) -> Vec<
                         Severity::Note,
                         Some("Cargo.toml".to_string()),
                     ));
-                },
+                }
                 Some(readme_value) => {
-                    if readme_value.as_str().is_some()  || readme_value.as_bool() == Some(false){
-
-                    }else {
+                    if readme_value.as_str().is_some() || readme_value.as_bool() == Some(false) {
+                    } else {
                         findings.push(Finding::new(
                             "MD004",
                             format!("The 'readme' field in Cargo.toml has an unexpected value ( '{}' ). Expected a file path string (e.g., \"README.md\") or `false`.", readme_value),
@@ -122,7 +137,6 @@ pub fn check_missing_metadata(manifest: &CargoManifest, config: &Config) -> Vec<
                             Some("Cargo.toml".to_string()),
                         ));
                     }
-
                 }
             }
         }
@@ -169,7 +183,6 @@ pub fn check_dependency_versions(manifest: &CargoManifest, config: &Config) -> V
         check_deps(&manifest.dev_dependencies, "dev");
         check_deps(&manifest.build_dependencies, "build");
     }
-    
 
     findings
 }
@@ -191,7 +204,8 @@ pub fn check_rust_edition(manifest: &CargoManifest) -> Vec<Finding> {
                     Some("Cargo.toml".to_string()),
                 ));
             }
-            None => { // Editions before 2018 were implicit (2015)
+            None => {
+                // Editions before 2018 were implicit (2015)
                 findings.push(Finding::new(
                     "ED002",
                     format!(
@@ -208,19 +222,15 @@ pub fn check_rust_edition(manifest: &CargoManifest) -> Vec<Finding> {
     findings
 }
 
-
-
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::{ChecksConfig, Config, GeneralConfig};
+    use crate::diagnostics::Severity;
+    use std::collections::HashMap;
     use std::fs;
     use std::path::PathBuf;
-    use std::collections::HashMap;
     use tempfile::TempDir;
-    use crate::config::{Config, GeneralConfig, ChecksConfig};
-    use crate::diagnostics::{Severity};
 
     // Helper function to create a temporary Cargo.toml file
     fn create_temp_cargo_toml(content: &str) -> (TempDir, PathBuf) {
@@ -237,7 +247,7 @@ mod tests {
         enabled.insert("MD002".to_string(), true);
         enabled.insert("MD003".to_string(), true);
         enabled.insert("MD004".to_string(), true);
-        
+
         Config {
             general: GeneralConfig::default(),
             checks: ChecksConfig { enabled },
@@ -250,7 +260,7 @@ mod tests {
         for check in checks {
             enabled.insert(check.to_string(), true);
         }
-        
+
         Config {
             general: GeneralConfig::default(),
             checks: ChecksConfig { enabled },
@@ -265,12 +275,12 @@ mod tests {
         enabled.insert("MD002".to_string(), true);
         enabled.insert("MD003".to_string(), true);
         enabled.insert("MD004".to_string(), true);
-        
+
         // Disable specific checks
         for check in disabled_checks {
             enabled.insert(check.to_string(), false);
         }
-        
+
         Config {
             general: GeneralConfig::default(),
             checks: ChecksConfig { enabled },
@@ -310,7 +320,10 @@ cc = "1.0"
         assert_eq!(package.edition, Some("2021".to_string()));
         assert_eq!(package.description, Some("A test package".to_string()));
         assert_eq!(package.license, Some("MIT".to_string()));
-        assert_eq!(package.repository, Some("https://github.com/user/repo".to_string()));
+        assert_eq!(
+            package.repository,
+            Some("https://github.com/user/repo".to_string())
+        );
 
         assert!(manifest.dependencies.is_some());
         assert!(manifest.dev_dependencies.is_some());
@@ -388,7 +401,7 @@ path_dep = { path = "../local" }
         let manifest = CargoManifest::parse(&path).unwrap();
 
         let deps = manifest.dependencies.unwrap();
-        
+
         match deps.get("simple").unwrap() {
             Dependency::Version(v) => assert_eq!(v, "1.0"),
             _ => panic!("Expected version dependency"),
@@ -398,7 +411,7 @@ path_dep = { path = "../local" }
             Dependency::Detailed(d) => {
                 assert_eq!(d.version, Some("2.0".to_string()));
                 assert_eq!(d.features, Some(vec!["feature1".to_string()]));
-            },
+            }
             _ => panic!("Expected detailed dependency"),
         }
 
@@ -406,7 +419,7 @@ path_dep = { path = "../local" }
             Dependency::Detailed(d) => {
                 assert_eq!(d.path, Some("../local".to_string()));
                 assert_eq!(d.version, None);
-            },
+            }
             _ => panic!("Expected detailed dependency"),
         }
     }
@@ -452,7 +465,7 @@ path_dep = { path = "../local" }
 
         let config = mock_config_with_checks(&["MD001"]);
         let findings = check_missing_metadata(&manifest, &config);
-        
+
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].code, "MD001");
         assert_eq!(findings[0].severity, Severity::Warning);
@@ -478,7 +491,7 @@ path_dep = { path = "../local" }
 
         let config = mock_config_with_checks(&["MD001"]);
         let findings = check_missing_metadata(&manifest, &config);
-        
+
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].code, "MD001");
     }
@@ -502,7 +515,7 @@ path_dep = { path = "../local" }
 
         let config = mock_config_with_checks(&["MD002"]);
         let findings = check_missing_metadata(&manifest, &config);
-        
+
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].code, "MD002");
         assert_eq!(findings[0].severity, Severity::Warning);
@@ -528,7 +541,7 @@ path_dep = { path = "../local" }
 
         let config = mock_config_with_checks(&["MD003"]);
         let findings = check_missing_metadata(&manifest, &config);
-        
+
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].code, "MD003");
         assert_eq!(findings[0].severity, Severity::Note);
@@ -554,7 +567,7 @@ path_dep = { path = "../local" }
 
         let config = mock_config_with_checks(&["MD004"]);
         let findings = check_missing_metadata(&manifest, &config);
-        
+
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].code, "MD004");
         assert_eq!(findings[0].severity, Severity::Note);
@@ -580,7 +593,7 @@ path_dep = { path = "../local" }
 
         let config = mock_config_with_checks(&["MD004"]);
         let findings = check_missing_metadata(&manifest, &config);
-        
+
         assert!(findings.is_empty());
     }
 
@@ -603,7 +616,7 @@ path_dep = { path = "../local" }
 
         let config = mock_config_with_checks(&["MD004"]);
         let findings = check_missing_metadata(&manifest, &config);
-        
+
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].code, "MD004");
         assert_eq!(findings[0].severity, Severity::Warning);
@@ -621,7 +634,7 @@ path_dep = { path = "../local" }
 
         let config = mock_config_all_enabled();
         let findings = check_missing_metadata(&manifest, &config);
-        
+
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].code, "MD005");
         assert_eq!(findings[0].severity, Severity::Error);
@@ -647,9 +660,9 @@ path_dep = { path = "../local" }
 
         let config = mock_config_all_enabled();
         let findings = check_missing_metadata(&manifest, &config);
-        
+
         assert_eq!(findings.len(), 4); // MD001, MD002, MD003, MD004
-        
+
         let codes: Vec<&str> = findings.iter().map(|f| f.code.as_str()).collect();
         assert!(codes.contains(&"MD001"));
         assert!(codes.contains(&"MD002"));
@@ -659,39 +672,38 @@ path_dep = { path = "../local" }
 
     #[test]
     fn test_check_disabled_checks() {
-    let manifest = CargoManifest {
-        package: Some(Package {
-            name: "test".to_string(),
-            version: "0.1.0".to_string(),
-            edition: None,
-            description: None,
-            license: None,
-            readme: None,
-            repository: None,
-        }),
-        dependencies: None,
-        dev_dependencies: None,
-        build_dependencies: None,
-    };
+        let manifest = CargoManifest {
+            package: Some(Package {
+                name: "test".to_string(),
+                version: "0.1.0".to_string(),
+                edition: None,
+                description: None,
+                license: None,
+                readme: None,
+                repository: None,
+            }),
+            dependencies: None,
+            dev_dependencies: None,
+            build_dependencies: None,
+        };
 
-    // Create config with only MD001 enabled, others explicitly disabled
-    let mut enabled = HashMap::new();
-    enabled.insert("MD001".to_string(), true);
-    enabled.insert("MD002".to_string(), false);
-    enabled.insert("MD003".to_string(), false);
-    enabled.insert("MD004".to_string(), false);
-    
-    let config = Config {
-        general: GeneralConfig::default(),
-        checks: ChecksConfig { enabled },
-    };
-    
-    let findings = check_missing_metadata(&manifest, &config);
-    
-    assert_eq!(findings.len(), 1);
-    assert_eq!(findings[0].code, "MD001");
-}
+        // Create config with only MD001 enabled, others explicitly disabled
+        let mut enabled = HashMap::new();
+        enabled.insert("MD001".to_string(), true);
+        enabled.insert("MD002".to_string(), false);
+        enabled.insert("MD003".to_string(), false);
+        enabled.insert("MD004".to_string(), false);
 
+        let config = Config {
+            general: GeneralConfig::default(),
+            checks: ChecksConfig { enabled },
+        };
+
+        let findings = check_missing_metadata(&manifest, &config);
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].code, "MD001");
+    }
 
     #[test]
     fn test_readme_field_variants() {
