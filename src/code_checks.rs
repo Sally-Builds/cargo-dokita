@@ -24,7 +24,7 @@
 //!
 //! ```rust,no_run
 //! use std::path::Path;
-//! use code_checks::{collect_rust_files, check_code_patterns, check_project_structure};
+//! use cargo_dokita::code_checks::{collect_rust_files, check_code_patterns, check_project_structure};
 //!
 //! let project_root = Path::new("./my_project");
 //! let rust_files = collect_rust_files(project_root);

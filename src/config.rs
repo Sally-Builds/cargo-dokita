@@ -21,11 +21,16 @@
 //!
 //! ## Usage
 //! Load configuration from the project root:
-//! ```rust
+//! ```rust,no_run
+//! use std::path::Path;
+//! use cargo_dokita::config::Config;
+//!
+//! let project_root = Path::new("./my_project");
 //! let config = Config::load_from_project_root(project_root)?;
 //! if config.is_check_enabled("MD001") {
 //!     // Run check MD001
 //! }
+//! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
 //!

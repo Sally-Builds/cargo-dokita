@@ -16,7 +16,7 @@
 //!
 //! ```rust,no_run
 //! use reqwest::blocking::Client;
-//! use crates_io_api::get_latest_versions_from_crates_io;
+//! use cargo_dokita::crates_io_api::get_latest_versions_from_crates_io;
 //!
 //! let client = Client::new();
 //! match get_latest_versions_from_crates_io("serde", &client) {
